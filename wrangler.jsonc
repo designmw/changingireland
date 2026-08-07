@@ -14,10 +14,16 @@
   "compatibility_flags": ["nodejs_compat"],
   // Post URLs are root-level with no trailing slash (/post-name), matching the
   // WordPress permalinks this site replaces. drop-trailing-slash keeps served
-  // URLs in agreement with each page's canonical; 404-page renders our 404.
+  // URLs in agreement with each page's canonical.
+  //
+  // Do NOT set not_found_handling: "404-page" here: on this SSR site almost no
+  // page is a static asset, and that setting makes the assets layer answer
+  // browser navigations (Sec-Fetch-Mode: navigate) with the static 404 page
+  // without ever invoking the Worker — every SSR route 404s in a real browser
+  // while curl (no Sec-Fetch headers) sees 200s. Unmatched requests must fall
+  // through to the Worker, where Astro renders pages and its own 404.
   "assets": {
     "html_handling": "drop-trailing-slash",
-    "not_found_handling": "404-page",
   },
   // Posts, users/sessions, and magazines all live in D1 so the editors can
   // publish from /admin without a rebuild (same system as the iscphm site,
