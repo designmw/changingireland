@@ -31,3 +31,10 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// Auth: the logged-in editor (set by src/middleware.ts on server-rendered routes).
+declare namespace App {
+  interface Locals {
+    user: import('~/lib/auth').User | null;
+  }
+}

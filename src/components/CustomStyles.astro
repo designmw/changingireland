@@ -1,5 +1,8 @@
 ---
-import '@fontsource-variable/inter';
+// Changing Ireland uses the live site's pairing: Epilogue (heavy black
+// headlines, the Newspaper-theme look) over Open Sans body text.
+import '@fontsource-variable/epilogue';
+import '@fontsource-variable/open-sans';
 
 // 'DM Sans'
 // Nunito
@@ -21,39 +24,50 @@ import '@fontsource-variable/inter';
 
 <style is:inline>
   :root {
-    --aw-font-sans: 'Inter Variable';
-    --aw-font-serif: 'Inter Variable';
-    --aw-font-heading: 'Inter Variable';
+    --aw-font-sans: 'Open Sans Variable';
+    --aw-font-serif: 'Open Sans Variable';
+    --aw-font-heading: 'Epilogue Variable';
 
-    --aw-color-primary: rgb(1 97 239);
-    --aw-color-secondary: rgb(1 84 207);
-    --aw-color-accent: rgb(109 40 217);
+    /* Brand palette drawn from the logo's green. Primary #2e7412 is a deep
+       tone of the logo lime's hue: 5.7:1 on white, so it can carry text and
+       white-on-it both pass WCAG AA. The lime itself (#81e116, accent) is
+       ~1.7:1 on white — decorative only, never text. Tommy chose green over
+       the old site's link blue (7 Aug 2026). */
+    --aw-color-primary: rgb(46 116 18);
+    --aw-color-secondary: rgb(28 74 15);
+    --aw-color-accent: rgb(129 225 22);
 
     --aw-color-text-heading: rgb(0 0 0);
-    --aw-color-text-default: rgb(16 16 16);
-    --aw-color-text-muted: rgb(16 16 16 / 66%);
+    --aw-color-text-default: rgb(33 33 33);
+    --aw-color-text-muted: rgb(33 33 33 / 72%);
     --aw-color-bg-page: rgb(255 255 255);
 
-    --aw-color-bg-page-dark: rgb(3 6 32);
+    /* Black footer band, as on the live site */
+    --aw-color-bg-page-dark: rgb(10 10 10);
 
     ::selection {
       background-color: lavender;
     }
+
+    /* Body copy is 1rem (16px) site-wide — Tommy's standard. */
+    font-size: 1rem;
   }
 
+  /* The site is light-only; .dark is used by the black footer band (the live
+     site's footer is pure black with white text). */
   .dark {
-    --aw-font-sans: 'Inter Variable';
-    --aw-font-serif: 'Inter Variable';
-    --aw-font-heading: 'Inter Variable';
+    --aw-font-sans: 'Open Sans Variable';
+    --aw-font-serif: 'Open Sans Variable';
+    --aw-font-heading: 'Epilogue Variable';
 
-    --aw-color-primary: rgb(1 97 239);
-    --aw-color-secondary: rgb(1 84 207);
-    --aw-color-accent: rgb(109 40 217);
+    --aw-color-primary: rgb(46 116 18);
+    --aw-color-secondary: rgb(28 74 15);
+    --aw-color-accent: rgb(129 225 22);
 
-    --aw-color-text-heading: rgb(247, 248, 248);
+    --aw-color-text-heading: rgb(255 255 255);
     --aw-color-text-default: rgb(229 236 246);
-    --aw-color-text-muted: rgb(229 236 246 / 66%);
-    --aw-color-bg-page: rgb(3 6 32);
+    --aw-color-text-muted: rgb(229 236 246 / 72%);
+    --aw-color-bg-page: rgb(10 10 10);
 
     ::selection {
       background-color: black;

@@ -7,11 +7,36 @@
 // site ever needs them; the adapter passes them through.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "dmw-astro-base",
+  "name": "changingireland",
   "compatibility_date": "2026-04-15",
   // nodejs_compat gives the workerd dev runtime a `process` global so
   // console logging in on-demand routes doesn't crash.
   "compatibility_flags": ["nodejs_compat"],
+  // Post URLs are root-level with no trailing slash (/post-name), matching the
+  // WordPress permalinks this site replaces. drop-trailing-slash keeps served
+  // URLs in agreement with each page's canonical; 404-page renders our 404.
+  "assets": {
+    "html_handling": "drop-trailing-slash",
+    "not_found_handling": "404-page",
+  },
+  // Posts, users/sessions, and magazines all live in D1 so the editors can
+  // publish from /admin without a rebuild (same system as the iscphm site,
+  // with its own database).
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "changingireland-db",
+      "database_id": "418d2f79-5617-4585-a96e-88cd93cb4735",
+      "migrations_dir": "migrations",
+    },
+  ],
+  // Magazine PDFs, cover images, and post images uploaded from /admin.
+  "r2_buckets": [
+    {
+      "binding": "UPLOADS",
+      "bucket_name": "changingireland-uploads",
+    },
+  ],
   // Per-IP rate limit for the contact form. Each submission costs two Brevo
   // sends (the enquiry and the acknowledgement), so an unmetered endpoint is a
   // billing risk and a way to push mail at a third party. Consumed in
@@ -22,8 +47,8 @@
         "name": "CONTACT_RATE_LIMIT",
         "type": "ratelimit",
         "namespace_id": "1001",
-        "simple": { "limit": 5, "period": 60 }
-      }
-    ]
-  }
+        "simple": { "limit": 5, "period": 60 },
+      },
+    ],
+  },
 }

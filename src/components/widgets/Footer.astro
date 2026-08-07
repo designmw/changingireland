@@ -43,7 +43,7 @@ const {
       <!-- Brand column: logo, supporting description, legal links -->
       <div class="lg:col-span-5">
         <a class="inline-flex items-center" href={getHomePermalink()} aria-label="Home">
-          <Logo />
+          <Logo onDark={theme === 'dark'} class="w-48" />
         </a>
         {description && <p class="mt-4 max-w-md text-sm text-muted dark:text-gray-400" set:html={description} />}
         {

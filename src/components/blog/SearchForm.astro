@@ -1,0 +1,21 @@
+---
+/** Small GET form pointing at /search — used on the archive pages and 404. */
+export interface Props {
+  value?: string;
+  class?: string;
+}
+const { value = '', class: className = '' } = Astro.props;
+---
+
+<form method="get" action="/search" role="search" class={`flex items-center gap-2 ${className}`}>
+  <label for="site-search" class="sr-only">Search articles</label>
+  <input
+    id="site-search"
+    name="q"
+    type="search"
+    value={value}
+    placeholder="Search articles…"
+    class="py-2.5 px-4 w-full sm:w-72 rounded-xl border border-gray-300 bg-white text-default placeholder:text-gray-500 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+  />
+  <button type="submit" class="btn-primary py-2.5 px-5">Search</button>
+</form>

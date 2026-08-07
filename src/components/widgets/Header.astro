@@ -1,13 +1,13 @@
 ---
 import { Icon } from 'astro-icon/components';
 import Logo from '~/components/Logo.astro';
-import ToggleTheme from '~/components/common/ToggleTheme.astro';
+import HeaderSearch from '~/components/HeaderSearch.astro';
 import ToggleMenu from '~/components/common/ToggleMenu.astro';
-import Button from '~/components/ui/Button.astro';
 
-import { getHomePermalink } from '~/utils/permalinks';
-import { trimSlash, getAsset } from '~/utils/permalinks';
-import type { CallToAction } from '~/types';
+import { getHomePermalink, trimSlash } from '~/utils/permalinks';
+import { getDb } from '~/lib/auth';
+import { getTaxonomyCounts, getPublishedPosts, type PostRow } from '~/lib/posts';
+import { getAllMagazines, type MagazineRow } from '~/lib/magazines';
 
 interface Link {
   text?: string;
@@ -18,39 +18,100 @@ interface Link {
 
 interface MenuLink extends Link {
   links?: Array<MenuLink>;
+  /** Renders a full-width mega panel on desktop instead of a simple dropdown. */
+  mega?: 'news' | 'magazines';
 }
 
 export interface Props {
   id?: string;
   links?: Array<MenuLink>;
-  actions?: Array<CallToAction>;
   isSticky?: boolean;
   isDark?: boolean;
   isFullWidth?: boolean;
-  showToggleTheme?: boolean;
-  showRssFeed?: boolean;
   position?: string;
 }
 
-const {
-  id = 'header',
-  links = [],
-  actions = [],
-  isSticky = false,
-  isDark = false,
-  isFullWidth = false,
-  showToggleTheme = false,
-  showRssFeed = false,
-  position = 'center',
-} = Astro.props;
+const { id = 'header', links = [], isSticky = false, isDark = false, isFullWidth = false } = Astro.props;
 
 const currentPath = `/${trimSlash(new URL(Astro.url).pathname)}`;
+
+// Masthead date, Irish English like the WordPress site's top bar. The short
+// form fits between logo and hamburger on small phones.
+const today = new Date().toLocaleDateString('en-IE', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+const todayShort = new Date().toLocaleDateString('en-IE', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+});
+
+// Mega-menu content, straight from D1 (best-effort: with no database the
+// panels fall back to the plain link lists).
+let megaCategories: { slug: string; title: string; count: number }[] = [];
+let megaPosts: PostRow[] = [];
+let megaMagazines: MagazineRow[] = [];
+try {
+  const db = await getDb();
+  if (db) {
+    megaCategories = (await getTaxonomyCounts(db, 'categories')).slice(0, 12);
+    megaPosts = await getPublishedPosts(db, 2);
+    megaMagazines = (await getAllMagazines(db)).slice(0, 4);
+  }
+} catch {
+  // migrations not applied yet — keep the simple menus
+}
+
+const socials = [
+  { label: 'Facebook', icon: 'tabler:brand-facebook', href: 'https://www.facebook.com/ChangingIrelandMagazine' },
+  { label: 'Instagram', icon: 'tabler:brand-instagram', href: 'https://www.instagram.com/changingireland/' },
+  { label: 'LinkedIn', icon: 'tabler:brand-linkedin', href: 'https://www.linkedin.com/company/changing-ireland' },
+  { label: 'YouTube', icon: 'tabler:brand-youtube', href: 'https://www.youtube.com/user/changingireland' },
+];
+
+const megaLinkClass =
+  'flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-default hover:bg-primary/5 hover:text-primary transition-colors';
 ---
+
+{/* Masthead: date + socials left, logo centre, live search right. A named
+    region landmark — it sits outside the sticky <header> (only the nav row
+    sticks), and content outside landmarks fails WCAG region checks. */}
+<div role="region" aria-label="Masthead" class="hidden min-[90rem]:block border-b border-gray-100 bg-page">
+  <div class="max-w-7xl mx-auto px-6 py-4 grid grid-cols-[1fr_auto_1fr] items-center gap-6">
+    <div class="justify-self-start">
+      <p class="m-0 text-sm font-semibold text-default whitespace-nowrap">{today}</p>
+      <ul class="flex items-center gap-0.5 list-none m-0 p-0 mt-1 -ml-1.5">
+        {
+          socials.map((s) => (
+            <li>
+              <a
+                href={s.href}
+                target="_blank"
+                rel="noopener"
+                aria-label={s.label}
+                class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-700 hover:text-primary hover:bg-primary/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <Icon name={s.icon} class="w-4.5 h-4.5" aria-hidden="true" />
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    <a href={getHomePermalink()}>
+      <Logo class="w-56" />
+    </a>
+    <HeaderSearch uid="masthead" class="justify-self-end w-full max-w-xs" />
+  </div>
+</div>
 
 <header
   class:list={[
     { sticky: isSticky, relative: !isSticky, dark: isDark },
-    'top-0 z-40 flex-none mx-auto w-full border-b border-gray-50/0 transition-[opacity] ease-in-out',
+    'top-0 z-40 flex-none mx-auto w-full bg-page border-b border-gray-100 transition-[opacity] ease-in-out',
   ]}
   {...isSticky ? { 'data-aw-sticky-header': true } : {}}
   {...id ? { id } : {}}
@@ -58,81 +119,238 @@ const currentPath = `/${trimSlash(new URL(Astro.url).pathname)}`;
   <div class="absolute inset-0"></div>
   <div
     class:list={[
-      'relative text-default py-3 px-3 md:px-6 mx-auto w-full',
-      {
-        'md:flex md:justify-between': position !== 'center',
-      },
-      {
-        'md:grid md:grid-cols-3 md:items-center': position === 'center',
-      },
-      {
-        'max-w-7xl': !isFullWidth,
-      },
+      'relative text-default py-3 px-3 min-[90rem]:px-6 mx-auto w-full min-[90rem]:flex min-[90rem]:items-center min-[90rem]:justify-center',
+      { 'max-w-7xl': !isFullWidth },
     ]}
   >
-    <div class:list={[{ 'mr-auto rtl:mr-0 rtl:ml-auto': position === 'right' }, 'flex justify-between']}>
-      <a class="flex items-center" href={getHomePermalink()}>
-        <Logo />
+    {/* Mobile row: logo (date beneath, newspaper-style), socials centred,
+        hamburger right. Desktop uses the masthead above instead. */}
+    <div class="flex justify-between items-center gap-2 min-[90rem]:hidden">
+      <a class="flex items-center shrink-0" href={getHomePermalink()}>
+        <Logo class="w-36" />
       </a>
-      <div class="flex items-center md:hidden">
+      <div class="flex flex-col items-center">
+        <ul class="flex items-center justify-center gap-0.5 list-none m-0 p-0 flex-wrap">
+          {
+            socials.map((s) => (
+              <li>
+                <a
+                  href={s.href}
+                  target="_blank"
+                  rel="noopener"
+                  aria-label={s.label}
+                  class="inline-flex items-center justify-center w-8 h-8 max-[420px]:w-7 rounded-lg text-gray-700 hover:text-primary hover:bg-primary/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <Icon name={s.icon} class="w-4.5 h-4.5" aria-hidden="true" />
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+        <span class="text-[0.7rem] font-medium text-muted whitespace-nowrap max-[420px]:hidden">{today}</span>
+        <span class="text-[0.7rem] font-medium text-muted whitespace-nowrap hidden max-[420px]:inline">
+          {todayShort}
+        </span>
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
         <ToggleMenu />
       </div>
     </div>
+
+    {/* Sub-1440px live search — the same combobox as the desktop masthead.
+        Kept before the <nav> so BasicScripts' div:last-child toggle can't
+        hide it when the burger menu opens. */}
+    <div class="min-[90rem]:hidden mt-2.5">
+      <HeaderSearch uid="mobile" resultsClass="left-0 right-0" />
+    </div>
+
     <nav
       id="header-nav"
-      class="items-center w-full md:w-auto hidden md:flex md:mx-5 text-default overflow-y-auto overflow-x-hidden md:overflow-visible md:justify-self-center"
+      class="items-center w-full min-[90rem]:w-auto hidden min-[90rem]:flex text-default overflow-y-auto overflow-x-hidden min-[90rem]:overflow-visible min-[90rem]:justify-self-center"
       aria-label="Main navigation"
     >
       <ul
-        class="flex flex-col md:flex-row md:self-center w-full md:w-auto text-xl md:text-[0.9375rem] tracking-[0.01rem] font-medium md:justify-center"
+        class="flex flex-col min-[90rem]:flex-row min-[90rem]:self-center w-full min-[90rem]:w-auto text-xl min-[90rem]:text-[0.8125rem] tracking-[0.01rem] font-semibold min-[90rem]:justify-center"
       >
         {
-          links.map(({ text, href, links }, index) => (
-            <li class={links?.length ? 'dropdown' : ''}>
-              {links?.length ? (
+          links.map(({ text, href, links: subLinks, mega }, index) => (
+            <li class={subLinks?.length || mega ? 'dropdown' : ''}>
+              {subLinks?.length || mega ? (
                 <>
-                  {/*
-                    aria-expanded is kept in sync by BasicScripts.astro, which
-                    mirrors the CSS :hover / :focus-within state that actually
-                    opens the menu, and handles Escape to close.
-                  */}
+                  {/* aria-expanded kept in sync by BasicScripts.astro */}
                   <button
                     type="button"
-                    class="hover:text-link dark:hover:text-white px-4 py-3 flex items-center whitespace-nowrap"
+                    class="hover:text-link dark:hover:text-white px-2 py-3 flex items-center whitespace-nowrap"
                     aria-expanded="false"
                     aria-controls={`dropdown-menu-${index}`}
                     data-aw-dropdown-toggle
                   >
-                    {text}{' '}
-                    <Icon
-                      name="tabler:chevron-down"
-                      class="w-3.5 h-3.5 ml-0.5 rtl:ml-0 rtl:mr-0.5 hidden md:inline"
-                      aria-hidden="true"
-                    />
+                    {text}
+                    <Icon name="tabler:chevron-down" class="w-3.5 h-3.5 ml-0.5 hidden min-[90rem]:inline" aria-hidden="true" />
                   </button>
-                  <ul
-                    id={`dropdown-menu-${index}`}
-                    class="dropdown-menu md:backdrop-blur-md dark:md:bg-dark rounded md:absolute pl-4 md:pl-0 md:hidden font-medium md:bg-white/90 md:min-w-[200px] drop-shadow-xl"
-                  >
-                    {links.map(({ text: text2, href: href2 }) => (
-                      <li>
+
+                  {mega === 'news' && megaCategories.length > 0 ? (
+                    <div
+                      id={`dropdown-menu-${index}`}
+                      class="dropdown-menu min-[90rem]:absolute min-[90rem]:inset-x-0 pl-4 min-[90rem]:pl-0 min-[90rem]:hidden min-[90rem]:bg-white min-[90rem]:shadow-2xl min-[90rem]:ring-1 min-[90rem]:ring-black/5 min-[90rem]:rounded-b-xl"
+                    >
+                      {/* Mobile: plain list. Desktop: category grid + latest stories. */}
+                      <ul class="min-[90rem]:hidden font-medium list-none m-0 p-0">
+                        <li>
+                          <a class="py-2 px-5 block" href="/news">
+                            All News
+                          </a>
+                        </li>
+                        <li>
+                          <a class="py-2 px-5 block" href="/videos">
+                            Videos
+                          </a>
+                        </li>
+                        {megaCategories.slice(0, 8).map((c) => (
+                          <li>
+                            <a class="py-2 px-5 block" href={`/category/${c.slug}`}>
+                              {c.title}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                      <div class="hidden min-[90rem]:grid grid-cols-3 gap-8 p-8 max-w-7xl mx-auto text-left">
+                        <div class="col-span-2">
+                          <p class="text-xs font-bold uppercase tracking-wider text-muted mb-3">Browse by category</p>
+                          <ul class="grid grid-cols-2 gap-x-6 gap-y-0.5 list-none m-0 p-0">
+                            {megaCategories.map((c) => (
+                              <li>
+                                <a href={`/category/${c.slug}`} class={megaLinkClass}>
+                                  <span>{c.title}</span>
+                                  <span class="text-xs text-muted font-normal">{c.count}</span>
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                          <div class="flex items-center gap-6 mt-4">
+                            <a
+                              href="/news"
+                              class="inline-flex items-center gap-1 text-sm font-bold text-primary hover:underline"
+                            >
+                              All news
+                              <Icon name="tabler:arrow-right" class="w-4 h-4" aria-hidden="true" />
+                            </a>
+                            <a
+                              href="/videos"
+                              class="inline-flex items-center gap-1 text-sm font-bold text-primary hover:underline"
+                            >
+                              <Icon name="tabler:player-play" class="w-4 h-4" aria-hidden="true" />
+                              Videos
+                            </a>
+                          </div>
+                        </div>
+                        <div>
+                          <p class="text-xs font-bold uppercase tracking-wider text-muted mb-3">Just published</p>
+                          <ul class="space-y-4 list-none m-0 p-0">
+                            {megaPosts.map((p) => (
+                              <li>
+                                <a
+                                  href={`/${p.slug}`}
+                                  class="group grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3 items-center"
+                                >
+                                  {p.image_url ? (
+                                    <img
+                                      src={p.image_url}
+                                      alt=""
+                                      width="72"
+                                      height="48"
+                                      loading="lazy"
+                                      class="w-18 h-12 rounded object-cover bg-gray-100"
+                                    />
+                                  ) : (
+                                    <span class="w-18 h-12 rounded bg-primary/10" aria-hidden="true" />
+                                  )}
+                                  <span class="font-heading font-bold text-sm leading-snug text-heading group-hover:text-primary transition-colors">
+                                    {p.title}
+                                  </span>
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  ) : mega === 'magazines' && megaMagazines.length > 0 ? (
+                    <div
+                      id={`dropdown-menu-${index}`}
+                      class="dropdown-menu min-[90rem]:absolute min-[90rem]:inset-x-0 pl-4 min-[90rem]:pl-0 min-[90rem]:hidden min-[90rem]:bg-white min-[90rem]:shadow-2xl min-[90rem]:ring-1 min-[90rem]:ring-black/5 min-[90rem]:rounded-b-xl"
+                    >
+                      <ul class="min-[90rem]:hidden font-medium list-none m-0 p-0">
+                        <li>
+                          <a class="py-2 px-5 block" href="/magazines">
+                            All issues
+                          </a>
+                        </li>
+                      </ul>
+                      <div class="hidden min-[90rem]:block p-8 max-w-5xl mx-auto text-left">
+                        <p class="text-xs font-bold uppercase tracking-wider text-muted mb-4">
+                          Latest issues — free to read
+                        </p>
+                        <ul class="grid grid-cols-4 gap-6 list-none m-0 p-0">
+                          {megaMagazines.map((m) => (
+                            <li>
+                              <a href={`/files/${m.pdf_key}`} class="group block">
+                                {m.cover_key ? (
+                                  <img
+                                    src={`/files/${m.cover_key}`}
+                                    alt=""
+                                    width="180"
+                                    height="255"
+                                    loading="lazy"
+                                    class="w-full rounded-md shadow border border-gray-200 aspect-[320/453] object-cover transition-transform group-hover:-translate-y-1 motion-reduce:transition-none motion-reduce:group-hover:translate-y-0"
+                                  />
+                                ) : (
+                                  <span
+                                    class="block w-full rounded-md bg-primary/10 aspect-[320/453]"
+                                    aria-hidden="true"
+                                  />
+                                )}
+                                <span class="block mt-2 text-sm font-heading font-bold leading-snug text-heading group-hover:text-primary transition-colors">
+                                  {m.title.split(':')[0]} (PDF)
+                                </span>
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
                         <a
-                          class:list={[
-                            'first:rounded-t last:rounded-b md:hover:bg-gray-100 hover:text-link dark:hover:text-white dark:hover:bg-gray-700 py-2 px-5 block whitespace-no-wrap',
-                            { 'aw-link-active': href2 === currentPath },
-                          ]}
-                          href={href2}
+                          href="/magazines"
+                          class="inline-flex items-center gap-1 mt-5 text-sm font-bold text-primary hover:underline"
                         >
-                          {text2}
+                          Browse the full archive
+                          <Icon name="tabler:arrow-right" class="w-4 h-4" aria-hidden="true" />
                         </a>
-                      </li>
-                    ))}
-                  </ul>
+                      </div>
+                    </div>
+                  ) : (
+                    <ul
+                      id={`dropdown-menu-${index}`}
+                      class="dropdown-menu min-[90rem]:backdrop-blur-md rounded min-[90rem]:absolute pl-4 min-[90rem]:pl-0 min-[90rem]:hidden font-medium min-[90rem]:bg-white/90 min-[90rem]:min-w-[200px] drop-shadow-xl"
+                    >
+                      {(subLinks ?? []).map(({ text: text2, href: href2 }) => (
+                        <li>
+                          <a
+                            class:list={[
+                              'first:rounded-t last:rounded-b min-[90rem]:hover:bg-gray-100 hover:text-link py-2 px-5 block whitespace-no-wrap',
+                              { 'aw-link-active': href2 === currentPath },
+                            ]}
+                            href={href2}
+                          >
+                            {text2}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </>
               ) : (
                 <a
                   class:list={[
-                    'hover:text-link dark:hover:text-white px-4 py-3 flex items-center whitespace-nowrap',
+                    'hover:text-link dark:hover:text-white px-2 py-3 flex items-center whitespace-nowrap',
                     { 'aw-link-active': href === currentPath },
                   ]}
                   href={href}
@@ -145,39 +363,6 @@ const currentPath = `/${trimSlash(new URL(Astro.url).pathname)}`;
         }
       </ul>
     </nav>
-    <div
-      class:list={[
-        { 'ml-auto rtl:ml-0 rtl:mr-auto': position === 'left' },
-        'hidden md:self-center md:flex items-center md:mb-0 fixed w-full md:w-auto md:static justify-end left-0 rtl:left-auto rtl:right-0 bottom-0 p-3 md:p-0 md:justify-self-end',
-      ]}
-    >
-      <div class="items-center flex justify-between w-full md:w-auto">
-        <div class="flex">
-          {showToggleTheme && <ToggleTheme iconClass="w-6 h-6 md:w-5 md:h-5 md:inline-block" />}
-          {
-            showRssFeed && (
-              <a
-                class="text-muted dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700 rounded-lg text-sm p-2.5 inline-flex items-center"
-                aria-label="RSS Feed"
-                href={getAsset('/rss.xml')}
-              >
-                <Icon name="tabler:rss" class="w-5 h-5" aria-hidden="true" />
-              </a>
-            )
-          }
-        </div>
-        {
-          actions?.length ? (
-            <span class="ml-4 rtl:ml-0 rtl:mr-4">
-              {actions.map((btnProps) => (
-                <Button {...btnProps} class="ml-2 py-2.5 px-5.5 md:px-6 font-semibold shadow-none text-sm w-auto" />
-              ))}
-            </span>
-          ) : (
-            ''
-          )
-        }
-      </div>
-    </div>
   </div>
 </header>
+

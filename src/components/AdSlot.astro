@@ -1,0 +1,40 @@
+---
+/**
+ * One homepage ad banner: an image managed in /admin/ads, optionally wrapped
+ * in its click-through link. Labelled "Advertisement" so it's never mistaken
+ * for editorial (and the label doubles as context for screen readers).
+ */
+import type { AdRow } from '~/lib/ads';
+
+export interface Props {
+  ad: AdRow | undefined;
+}
+const { ad } = Astro.props;
+---
+
+{
+  ad && ad.image_key && (
+    <section aria-label={`Advertisement: ${ad.label}`} class="px-4 sm:px-6 lg:px-8 py-6 mx-auto max-w-7xl">
+      <p class="text-[0.65rem] uppercase tracking-widest text-muted mb-1.5">Advertisement</p>
+      {ad.link_url ? (
+        <a href={ad.link_url} target="_blank" rel="noopener sponsored">
+          <img
+            src={`/files/${ad.image_key}`}
+            alt={ad.label}
+            class="w-full h-auto rounded-sm border border-gray-100"
+            loading="lazy"
+            decoding="async"
+          />
+        </a>
+      ) : (
+        <img
+          src={`/files/${ad.image_key}`}
+          alt={ad.label}
+          class="w-full h-auto rounded-sm border border-gray-100"
+          loading="lazy"
+          decoding="async"
+        />
+      )}
+    </section>
+  )
+}

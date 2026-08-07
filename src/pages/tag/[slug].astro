@@ -1,0 +1,42 @@
+---
+export const prerender = false;
+
+import Layout from '~/layouts/PageLayout.astro';
+import PageHeader from '~/components/PageHeader.astro';
+import Grid from '~/components/blog/Grid.astro';
+import PageNav from '~/components/blog/PageNav.astro';
+
+import { blogTagRobots } from '~/utils/blog';
+import { getDb } from '~/lib/auth';
+import { getPublishedPage, getTaxonomyCounts } from '~/lib/posts';
+import { rowToPost } from '~/lib/post-adapter';
+
+// /tag/[slug] — same URLs as the WordPress site, paginated with ?page=N.
+const slug = (Astro.params.slug ?? '').toString().toLowerCase();
+const db = await getDb();
+if (!db || !slug) return new Response(null, { status: 404 });
+
+const pageNum = Math.max(1, Number(Astro.url.searchParams.get('page') ?? 1));
+const result = await getPublishedPage(db, { page: pageNum, tag: slug });
+if (result.total === 0) return new Response(null, { status: 404 });
+
+const title = (await getTaxonomyCounts(db, 'tags')).find((t) => t.slug === slug)?.title ?? slug;
+const posts = result.rows.map(rowToPost);
+
+const metadata = {
+  title: `Tag: ${title}${result.page > 1 ? ` — Page ${result.page}` : ''}`,
+  description: `Articles tagged ${title} in the Changing Ireland archive.`,
+  robots: { index: blogTagRobots?.index && result.page === 1, follow: blogTagRobots?.follow },
+};
+---
+
+<Layout metadata={metadata}>
+  <PageHeader
+    title={`Tag: ${title}`}
+    subtitle={`${result.total} article${result.total === 1 ? '' : 's'} with this tag.`}
+  />
+  <section class="px-4 sm:px-6 lg:px-8 py-12 lg:py-16 mx-auto max-w-7xl">
+    <Grid posts={posts} />
+    <PageNav page={result.page} totalPages={result.totalPages} base={`/tag/${slug}`} label={`${title} pages`} />
+  </section>
+</Layout>

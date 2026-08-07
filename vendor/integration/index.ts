@@ -77,7 +77,11 @@ export default ({ config: _themeConfig = 'src/config.yaml' } = {}): AstroIntegra
         buildLogger.info('Updating `robots.txt` with `sitemap-index.xml` ...');
 
         try {
-          const outDir = cfg.outDir;
+          // On the Cloudflare adapter static assets land in <outDir>/client/,
+          // not <outDir> — probing outDir alone made sitemapExists false, so
+          // the Sitemap line silently never reached the deployed robots.txt.
+          const clientDir = new URL('client/', cfg.outDir);
+          const outDir = fs.existsSync(clientDir) ? clientDir : cfg.outDir;
           const publicDir = cfg.publicDir;
           const sitemapName = 'sitemap-index.xml';
           const sitemapFile = new URL(sitemapName, outDir);

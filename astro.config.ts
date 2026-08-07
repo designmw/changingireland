@@ -115,7 +115,9 @@ export default defineConfig({
     // dev router 404s every local image. This template ships with
     // trailingSlash: false, so the route is registered WITHOUT the slash
     // ('/_image/' is only correct for trailingSlash 'always').
-    endpoint: { route: '/_image' },
+    // `entrypoint: undefined` keeps Astro's built-in endpoint while satisfying
+    // the type, which requires the key to be present even when unset.
+    endpoint: { route: '/_image', entrypoint: undefined },
     // Astro's default Sharp service handles local images.
     //
     // Most remote CDN images (Unsplash, Cloudinary, Imgix…) are routed by
@@ -141,6 +143,17 @@ export default defineConfig({
     resolve: {
       alias: {
         '~': path.resolve(__dirname, './src'),
+      },
+    },
+    environments: {
+      ssr: {
+        // astro-icon pulls in `debug` (CJS); the workerd dev runner used for
+        // on-demand routes (/admin, archives, posts) can't load CJS unless it
+        // is prebundled. Without this those routes 500 with "module is not
+        // defined". Same fix as the iscphm site.
+        optimizeDeps: {
+          include: ['debug', '@iconify/utils'],
+        },
       },
     },
   },

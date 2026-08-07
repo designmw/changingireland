@@ -8,8 +8,8 @@
 # run `npm run check:golive` to catch any leftover placeholders.
 # ─────────────────────────────────────────────────────────────────────────────
 site:
-  name: dmw-astro-base
-  site: 'https://example.com'
+  name: Changing Ireland
+  site: 'https://changingireland.ie'
   base: '/'
   trailingSlash: false
   # Google Search Console verification. Paste ONLY the token from the
@@ -21,14 +21,14 @@ site:
 # Default SEO metadata
 metadata:
   title:
-    default: dmw-astro-base
-    template: '%s — Site Name'
-  description: 'A lean Astro v6 + Tailwind CSS v4 base starter for local Irish SME websites.'
+    default: Changing Ireland — community development news from Ireland
+    template: '%s — Changing Ireland'
+  description: 'Changing Ireland is the national community development magazine: news, features and voices from communities all around Ireland, free to read.'
   robots:
     index: false # CHANGE TO true BEFORE GO-LIVE
     follow: false # CHANGE TO true BEFORE GO-LIVE
   openGraph:
-    site_name: dmw-astro-base
+    site_name: Changing Ireland
     images:
       - url: '~/assets/images/default.png'
         width: 1200

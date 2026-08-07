@@ -1,0 +1,206 @@
+[
+  {
+    "id": 8,
+    "count": 58,
+    "name": "Activism &amp; Volunteering",
+    "slug": "activism-volunteering"
+  },
+  {
+    "id": 6,
+    "count": 26,
+    "name": "Climate Justice",
+    "slug": "climate-justice"
+  },
+  {
+    "id": 4,
+    "count": 102,
+    "name": "Community",
+    "slug": "community"
+  },
+  {
+    "id": 46,
+    "count": 11,
+    "name": "Community (Editor's Choice)",
+    "slug": "community-editors-choice"
+  },
+  {
+    "id": 28,
+    "count": 10,
+    "name": "Community Finance",
+    "slug": "community-finance"
+  },
+  {
+    "id": 1304,
+    "count": 47,
+    "name": "Covid-19 Diaries",
+    "slug": "covid19diaries"
+  },
+  {
+    "id": 5,
+    "count": 51,
+    "name": "Development Work",
+    "slug": "development-work"
+  },
+  {
+    "id": 1273,
+    "count": 12,
+    "name": "Editor's Picks",
+    "slug": "editors-picks"
+  },
+  {
+    "id": 1437,
+    "count": 4,
+    "name": "Editorial",
+    "slug": "editorial"
+  },
+  {
+    "id": 12,
+    "count": 28,
+    "name": "Education &amp; Training",
+    "slug": "education-training"
+  },
+  {
+    "id": 10,
+    "count": 41,
+    "name": "Empowerment",
+    "slug": "empowerment"
+  },
+  {
+    "id": 47,
+    "count": 8,
+    "name": "Empowerment (Editor's Choice)",
+    "slug": "empowerment-editors-choice"
+  },
+  {
+    "id": 7,
+    "count": 39,
+    "name": "Enterprise",
+    "slug": "enterprise"
+  },
+  {
+    "id": 11,
+    "count": 45,
+    "name": "Equality &amp; Rights",
+    "slug": "equality-rights"
+  },
+  {
+    "id": 1453,
+    "count": 11,
+    "name": "Events",
+    "slug": "events"
+  },
+  {
+    "id": 15,
+    "count": 30,
+    "name": "Family Support",
+    "slug": "family-support"
+  },
+  {
+    "id": 2829,
+    "count": 0,
+    "name": "Featured",
+    "slug": "featured"
+  },
+  {
+    "id": 26,
+    "count": 45,
+    "name": "Funding",
+    "slug": "funding"
+  },
+  {
+    "id": 27,
+    "count": 43,
+    "name": "Funding Programmes",
+    "slug": "funding-programmes"
+  },
+  {
+    "id": 29,
+    "count": 8,
+    "name": "Grants &amp; Subsidies",
+    "slug": "grants-subsidies"
+  },
+  {
+    "id": 1303,
+    "count": 44,
+    "name": "Harry's Diary",
+    "slug": "harrysdiary"
+  },
+  {
+    "id": 14,
+    "count": 30,
+    "name": "Health",
+    "slug": "health"
+  },
+  {
+    "id": 16,
+    "count": 29,
+    "name": "Inclusion",
+    "slug": "inclusion"
+  },
+  {
+    "id": 1274,
+    "count": 15,
+    "name": "Inclusion (Editor’s Choice)",
+    "slug": "inclusion-editors-choice"
+  },
+  {
+    "id": 13,
+    "count": 29,
+    "name": "Income &amp; Employment",
+    "slug": "income-employment"
+  },
+  {
+    "id": 18,
+    "count": 24,
+    "name": "Initiatives",
+    "slug": "initiatives"
+  },
+  {
+    "id": 1355,
+    "count": 25,
+    "name": "OPINION/ADVICE",
+    "slug": "opinion-advice"
+  },
+  {
+    "id": 1331,
+    "count": 22,
+    "name": "People",
+    "slug": "people"
+  },
+  {
+    "id": 9,
+    "count": 24,
+    "name": "Planning &amp; Governance",
+    "slug": "planning-governance"
+  },
+  {
+    "id": 20,
+    "count": 35,
+    "name": "Policy &amp; Strategy",
+    "slug": "policy-strategy"
+  },
+  {
+    "id": 17,
+    "count": 15,
+    "name": "Programmes",
+    "slug": "programmes"
+  },
+  {
+    "id": 1444,
+    "count": 22,
+    "name": "Refugees/Ukraine",
+    "slug": "refugees-ukraine"
+  },
+  {
+    "id": 1,
+    "count": 245,
+    "name": "Uncategorized",
+    "slug": "uncategorized"
+  },
+  {
+    "id": 38,
+    "count": 3,
+    "name": "Video",
+    "slug": "video"
+  }
+]

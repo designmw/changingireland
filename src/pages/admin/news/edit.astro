@@ -1,0 +1,466 @@
+---
+export const prerender = false;
+
+import Layout from '~/layouts/PageLayout.astro';
+import AdminShell from '~/components/AdminShell.astro';
+import RichEditor from '~/components/RichEditor.astro';
+import { Icon } from 'astro-icon/components';
+import { isEditor, adminRedirect } from '~/lib/admin';
+import { getDb } from '~/lib/auth';
+import {
+  createPost,
+  updatePost,
+  getPostById,
+  getTaxonomyCounts,
+  parseTaxonomies,
+  slugify,
+  makeExcerpt,
+  slugTaken,
+  type Taxonomy,
+} from '~/lib/posts';
+
+if (!(await isEditor(Astro))) return Astro.redirect(adminRedirect(Astro));
+
+const db = await getDb();
+const id = Number(Astro.url.searchParams.get('id') ?? 0);
+
+let form = {
+  title: '',
+  slug: '',
+  content: '',
+  excerpt: '',
+  image_url: '',
+  image_alt: '',
+  categories: '',
+  tags: '',
+  author: '',
+  featured: 0,
+  published: 0,
+};
+let error = '';
+
+const taxToText = (json: string) =>
+  parseTaxonomies(json)
+    .map((t) => t.title)
+    .join(', ');
+
+/**
+ * Comma-separated titles -> {slug, title}[]. Slugs of taxonomies already in
+ * use on the site are reused (matched by title, case-insensitive) so editing a
+ * post never forks an imported WordPress slug; new titles get slugified.
+ */
+const textToTax = (text: string, existing: Taxonomy[]): Taxonomy[] => {
+  const byTitle = new Map(existing.map((t) => [t.title.toLowerCase(), t]));
+  const seen = new Set<string>();
+  const out: Taxonomy[] = [];
+  for (const raw of text.split(',')) {
+    const title = raw.trim();
+    if (!title) continue;
+    const match = byTitle.get(title.toLowerCase());
+    const tax = match ?? { slug: slugify(title), title };
+    if (seen.has(tax.slug)) continue;
+    seen.add(tax.slug);
+    out.push(tax);
+  }
+  return out;
+};
+
+if (id && db) {
+  const existing = await getPostById(db, id);
+  if (!existing) return Astro.redirect('/admin/news');
+  form = {
+    title: existing.title,
+    slug: existing.slug,
+    content: existing.content,
+    excerpt: existing.excerpt,
+    image_url: existing.image_url,
+    image_alt: existing.image_alt,
+    categories: taxToText(existing.categories),
+    tags: taxToText(existing.tags),
+    author: existing.author,
+    featured: existing.featured,
+    published: existing.published,
+  };
+}
+
+if (Astro.request.method === 'POST' && db) {
+  const fd = await Astro.request.formData();
+  const title = String(fd.get('title') ?? '').trim();
+  const content = String(fd.get('content') ?? '').trim();
+  const imageUrl = String(fd.get('image_url') ?? '').trim();
+  const imageAlt = String(fd.get('image_alt') ?? '').trim();
+  const categoriesText = String(fd.get('categories') ?? '').trim();
+  const tagsText = String(fd.get('tags') ?? '').trim();
+  const author = String(fd.get('author') ?? '').trim();
+  const publish = fd.get('published') === 'on';
+  const featured = fd.get('featured') === 'on';
+  let slug = String(fd.get('slug') ?? '').trim();
+  let excerpt = String(fd.get('excerpt') ?? '').trim();
+
+  slug = slug ? slugify(slug) : slugify(title);
+  if (!excerpt) excerpt = makeExcerpt(content);
+
+  form = {
+    title,
+    slug,
+    content,
+    excerpt,
+    image_url: imageUrl,
+    image_alt: imageAlt,
+    categories: categoriesText,
+    tags: tagsText,
+    author,
+    featured: featured ? 1 : 0,
+    published: publish ? 1 : 0,
+  };
+
+  if (!title) {
+    error = 'Please give the article a title.';
+  } else if (!content) {
+    error = 'Please write some content.';
+  } else if (await slugTaken(db, slug, id)) {
+    error = `The web address “/${slug}” is already used by another article. Change the title or the web address.`;
+  } else {
+    const knownCategories = await getTaxonomyCounts(db, 'categories');
+    const knownTags = await getTaxonomyCounts(db, 'tags');
+    const payload = {
+      title,
+      slug,
+      content,
+      excerpt,
+      imageUrl,
+      imageAlt,
+      categories: textToTax(categoriesText, knownCategories),
+      tags: textToTax(tagsText, knownTags),
+      author,
+      featured,
+      publish,
+    };
+    if (id) await updatePost(db, id, payload);
+    else await createPost(db, payload);
+    return Astro.redirect('/admin/news?saved=1');
+  }
+}
+
+const inputClass =
+  'py-2.5 px-4 block w-full rounded-xl border border-gray-300 bg-white text-default placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none';
+const labelClass = 'block text-sm font-semibold text-default mb-1.5';
+
+// Existing taxonomies/authors, for the pickers: categories become clickable
+// pills, authors a native datalist on the author input.
+const allCategories = db ? await getTaxonomyCounts(db, 'categories') : [];
+const allAuthors = db
+  ? (
+      await db
+        .prepare("SELECT author, COUNT(*) AS n FROM posts WHERE author != '' GROUP BY author ORDER BY n DESC, author")
+        .all<{ author: string }>()
+    ).results
+  : [];
+
+const metadata = {
+  title: id ? 'Edit article — Admin' : 'New article — Admin',
+  robots: { index: false, follow: false },
+};
+---
+
+<Layout metadata={metadata}>
+  <AdminShell title={id ? 'Edit article' : 'New article'} current="news">
+    <a
+      href="/admin/news"
+      class="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline mb-5"
+    >
+      <Icon name="tabler:arrow-left" class="h-4 w-4" /> Back to all articles
+    </a>
+
+    {
+      error && (
+        <p class="mb-6 rounded-xl bg-red-50 text-red-700 px-4 py-3 text-sm" role="alert">
+          {error}
+        </p>
+      )
+    }
+
+    <form method="post" class="grid gap-6 lg:grid-cols-3 items-start">
+      <div class="lg:col-span-2 rounded-2xl bg-white shadow-md border border-gray-100 p-6 space-y-5">
+        <div>
+          <label for="title" class={labelClass}>Title</label>
+          <input id="title" name="title" type="text" value={form.title} required class={inputClass} />
+        </div>
+
+        <RichEditor
+          name="content"
+          value={form.content}
+          label="Content"
+          required
+          hint="Add photos with the image button — they upload straight to the site."
+        />
+
+        <div>
+          <label for="excerpt" class={labelClass}>
+            Summary <span class="font-normal text-muted">(optional)</span>
+          </label>
+          <textarea id="excerpt" name="excerpt" rows="3" class={inputClass}>{form.excerpt}</textarea>
+          <p class="mt-1.5 text-xs text-muted">
+            Shown on article cards and in search results. Left blank, it is taken from the start of the content.
+          </p>
+        </div>
+
+        <div>
+          <label for="categories" class={labelClass}>
+            Categories <span class="font-normal text-muted">(comma-separated)</span>
+          </label>
+          <input
+            id="categories"
+            name="categories"
+            type="text"
+            value={form.categories}
+            placeholder="Community Development, Health"
+            class={inputClass}
+            data-cat-input
+          />
+          {/* Enhanced picker — hidden without JavaScript; the text input above
+              stays the source of truth for what the form submits. */}
+          <div data-cat-picker data-known={JSON.stringify(allCategories.map((c) => c.title))} class="hidden mt-2.5">
+            <ul data-cat-chips class="flex flex-wrap gap-1.5 list-none m-0 p-0 empty:hidden mb-2.5"></ul>
+            <p class="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Click to add or remove</p>
+            <ul data-cat-known class="flex flex-wrap gap-1.5 list-none m-0 p-0 mb-2.5"></ul>
+            <div class="flex gap-2 max-w-xs">
+              <label for="cat-new" class="sr-only">New category</label>
+              <input id="cat-new" data-cat-new type="text" placeholder="New category…" class={`${inputClass} text-sm py-2`} />
+              <button type="button" data-cat-add class="btn-secondary text-sm py-2 px-4 shrink-0">Add</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label for="tags" class={labelClass}>
+            Tags <span class="font-normal text-muted">(comma-separated)</span>
+          </label>
+          <input
+            id="tags"
+            name="tags"
+            type="text"
+            value={form.tags}
+            placeholder="volunteering, dublin"
+            class={inputClass}
+          />
+        </div>
+
+        <div>
+          <label for="author" class={labelClass}>
+            Author <span class="font-normal text-muted">(optional)</span>
+          </label>
+          <input
+            id="author"
+            name="author"
+            type="text"
+            value={form.author}
+            placeholder="Allen Meagher"
+            data-author-input
+            class={inputClass}
+          />
+          {/* Clickable contributor pills — hidden without JavaScript. */}
+          <div data-author-picker data-known={JSON.stringify(allAuthors.map((a) => a.author))} class="hidden mt-2.5">
+            <p class="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Or pick an existing contributor</p>
+            <ul data-author-known class="flex flex-wrap gap-1.5 list-none m-0 p-0"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl bg-white shadow-md border border-gray-100 p-6 space-y-5 lg:sticky lg:top-24">
+        <div>
+          <span class={labelClass}>Status</span>
+          <label
+            class="flex items-center gap-3 rounded-xl border border-gray-300 px-4 py-3 cursor-pointer hover:border-primary transition-colors"
+          >
+            <input
+              type="checkbox"
+              name="published"
+              checked={form.published === 1}
+              class="h-4 w-4 accent-[var(--aw-color-primary)]"
+            />
+            <span class="text-sm font-medium text-default">Published</span>
+          </label>
+          <p class="mt-1.5 text-xs text-muted">
+            Unpublished articles are saved as drafts and are not visible on the site.
+          </p>
+        </div>
+
+        <div>
+          <label for="slug" class={labelClass}>
+            Web address <span class="font-normal text-muted">(optional)</span>
+          </label>
+          <input id="slug" name="slug" type="text" value={form.slug} placeholder="from-the-title" class={inputClass} />
+          <p class="mt-1.5 text-xs text-muted">Generated from the title if left blank.</p>
+        </div>
+
+        <div>
+          <label for="image_url" class={labelClass}>
+            Featured image <span class="font-normal text-muted">(optional)</span>
+          </label>
+          <input
+            id="image_url"
+            name="image_url"
+            type="text"
+            value={form.image_url}
+            placeholder="/uploads/2026/05/photo.webp"
+            class={inputClass}
+          />
+          <p class="mt-1.5 text-xs text-muted">Path or URL of an image already on the site.</p>
+        </div>
+
+        <div>
+          <label for="image_alt" class={labelClass}>
+            Image description <span class="font-normal text-muted">(alt text)</span>
+          </label>
+          <input
+            id="image_alt"
+            name="image_alt"
+            type="text"
+            value={form.image_alt}
+            placeholder="What the image shows"
+            class={inputClass}
+          />
+          <p class="mt-1.5 text-xs text-muted">Read out by screen readers. Leave blank only for decorative images.</p>
+        </div>
+
+        <button type="submit" class="btn-primary w-full">
+          <Icon name="tabler:device-floppy" class="h-5 w-5 mr-1.5" /> Save article
+        </button>
+      </div>
+    </form>
+  </AdminShell>
+</Layout>
+
+<script>
+  // Category picker: chips for the article's categories, pills for every
+  // existing category (click to toggle), and an add-new field. The plain
+  // comma-separated text input stays the submitted value and the no-JS
+  // fallback; this only enhances it.
+  function initCatPicker() {
+    const input = document.querySelector<HTMLInputElement>('input[data-cat-input]');
+    const picker = document.querySelector<HTMLElement>('[data-cat-picker]');
+    if (!input || !picker || picker.dataset.enhanced === 'yes') return;
+    picker.dataset.enhanced = 'yes';
+
+    const known: string[] = JSON.parse(picker.dataset.known || '[]');
+    const chips = picker.querySelector<HTMLUListElement>('[data-cat-chips]')!;
+    const knownList = picker.querySelector<HTMLUListElement>('[data-cat-known]')!;
+    const newInput = picker.querySelector<HTMLInputElement>('[data-cat-new]')!;
+    const addBtn = picker.querySelector<HTMLButtonElement>('[data-cat-add]')!;
+
+    let cats = input.value.split(',').map((s) => s.trim()).filter(Boolean);
+    const has = (c: string) => cats.some((x) => x.toLowerCase() === c.toLowerCase());
+    const add = (c: string) => {
+      if (c && !has(c)) {
+        cats.push(c);
+        sync();
+      }
+    };
+    const remove = (c: string) => {
+      cats = cats.filter((x) => x.toLowerCase() !== c.toLowerCase());
+      sync();
+    };
+
+    function sync() {
+      input.value = cats.join(', ');
+
+      chips.textContent = '';
+      cats.forEach((c) => {
+        const li = document.createElement('li');
+        const chip = document.createElement('span');
+        chip.className =
+          'inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary text-sm font-semibold pl-3 pr-1.5 py-1';
+        chip.append(c);
+        const x = document.createElement('button');
+        x.type = 'button';
+        x.textContent = '×';
+        x.setAttribute('aria-label', `Remove category ${c}`);
+        x.className =
+          'inline-flex items-center justify-center w-5 h-5 rounded-full hover:bg-primary hover:text-white leading-none';
+        x.addEventListener('click', () => remove(c));
+        chip.appendChild(x);
+        li.appendChild(chip);
+        chips.appendChild(li);
+      });
+
+      knownList.textContent = '';
+      known.forEach((c) => {
+        const li = document.createElement('li');
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = c;
+        const on = has(c);
+        b.setAttribute('aria-pressed', String(on));
+        b.className = on
+          ? 'rounded-full bg-primary text-white text-sm font-semibold px-3 py-1'
+          : 'rounded-full border border-gray-300 bg-white text-sm text-default px-3 py-1 hover:border-primary hover:text-primary';
+        b.addEventListener('click', () => (on ? remove(c) : add(c)));
+        li.appendChild(b);
+        knownList.appendChild(li);
+      });
+    }
+
+    addBtn.addEventListener('click', () => {
+      add(newInput.value.trim());
+      newInput.value = '';
+      newInput.focus();
+    });
+    newInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        add(newInput.value.trim());
+        newInput.value = '';
+      }
+    });
+
+    input.classList.add('hidden');
+    picker.classList.remove('hidden');
+    sync();
+  }
+
+  // Author picker: one pill per existing contributor; clicking one sets the
+  // author field (clicking the active pill clears it). Free text still works.
+  function initAuthorPicker() {
+    const input = document.querySelector<HTMLInputElement>('input[data-author-input]');
+    const picker = document.querySelector<HTMLElement>('[data-author-picker]');
+    if (!input || !picker || picker.dataset.enhanced === 'yes') return;
+    picker.dataset.enhanced = 'yes';
+
+    const known: string[] = JSON.parse(picker.dataset.known || '[]');
+    const list = picker.querySelector<HTMLUListElement>('[data-author-known]')!;
+
+    function render() {
+      list.textContent = '';
+      const current = input!.value.trim().toLowerCase();
+      known.forEach((name) => {
+        const li = document.createElement('li');
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = name;
+        const on = name.toLowerCase() === current;
+        b.setAttribute('aria-pressed', String(on));
+        b.className = on
+          ? 'rounded-full bg-primary text-white text-sm font-semibold px-3 py-1'
+          : 'rounded-full border border-gray-300 bg-white text-sm text-default px-3 py-1 hover:border-primary hover:text-primary';
+        b.addEventListener('click', () => {
+          input!.value = on ? '' : name;
+          render();
+        });
+        li.appendChild(b);
+        list.appendChild(li);
+      });
+    }
+
+    input.addEventListener('input', render);
+    picker.classList.remove('hidden');
+    render();
+  }
+
+  initCatPicker();
+  initAuthorPicker();
+  document.addEventListener('astro:page-load', () => {
+    initCatPicker();
+    initAuthorPicker();
+  });
+</script>

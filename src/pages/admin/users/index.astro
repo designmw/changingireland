@@ -1,0 +1,326 @@
+---
+export const prerender = false;
+
+import Layout from '~/layouts/PageLayout.astro';
+import AdminShell from '~/components/AdminShell.astro';
+import AdminToast from '~/components/AdminToast.astro';
+import AdminConfirmDelete from '~/components/AdminConfirmDelete.astro';
+import { Icon } from 'astro-icon/components';
+import { isAdmin, adminRedirect } from '~/lib/admin';
+import { getDb, hashPassword } from '~/lib/auth';
+
+// User management is strictly admin-only (contributors don't see this page).
+if (!(await isAdmin(Astro))) return Astro.redirect(adminRedirect(Astro));
+
+const db = await getDb();
+let notice = '';
+let error = '';
+
+interface UserRow {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  created_at: string;
+}
+
+let addForm = { username: '', email: '', first_name: '', last_name: '', role: 'editor' };
+
+if (Astro.request.method === 'POST' && db) {
+  const fd = await Astro.request.formData();
+  const action = fd.get('action');
+
+  if (action === 'delete') {
+    const id = Number(fd.get('id') ?? 0);
+    // Never delete your own account from under yourself.
+    if (id && id !== Astro.locals.user?.id) {
+      await db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+      return Astro.redirect('/admin/users?deleted=1');
+    }
+  }
+
+  if (action === 'role') {
+    const id = Number(fd.get('id') ?? 0);
+    const role = String(fd.get('role') ?? '');
+    if (id && id !== Astro.locals.user?.id && ['admin', 'editor'].includes(role)) {
+      await db.prepare('UPDATE users SET role = ? WHERE id = ?').bind(role, id).run();
+      return Astro.redirect('/admin/users?saved=1');
+    }
+  }
+
+  // Set (or reset) a contributor's password — needed for the accounts
+  // imported from WordPress, which arrive with locked random passwords.
+  if (action === 'password') {
+    const id = Number(fd.get('id') ?? 0);
+    const password = String(fd.get('password') ?? '');
+    if (!id) {
+      error = 'Missing user.';
+    } else if (password.length < 8) {
+      error = 'The new password must be at least 8 characters.';
+    } else {
+      const hash = await hashPassword(password);
+      await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(hash, id).run();
+      // Their old sessions are meaningless with a new password.
+      await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run();
+      return Astro.redirect('/admin/users?password=1');
+    }
+  }
+
+  if (action === 'add') {
+    const username = String(fd.get('username') ?? '').trim();
+    const email = String(fd.get('email') ?? '').trim();
+    const firstName = String(fd.get('first_name') ?? '').trim();
+    const lastName = String(fd.get('last_name') ?? '').trim();
+    const role = String(fd.get('role') ?? 'editor');
+    const password = String(fd.get('password') ?? '');
+
+    addForm = { username, email, first_name: firstName, last_name: lastName, role };
+
+    if (!username || !email || !firstName) {
+      error = 'Username, email, and first name are required.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      error = 'Please enter a valid email address.';
+    } else if (password.length < 8) {
+      error = 'The password must be at least 8 characters.';
+    } else if (!['admin', 'editor'].includes(role)) {
+      error = 'Choose a valid role.';
+    } else {
+      const existing = await db
+        .prepare('SELECT id FROM users WHERE username = ? OR email = ?')
+        .bind(username, email)
+        .first();
+      if (existing) {
+        error = 'A user with that username or email already exists.';
+      } else {
+        const hash = await hashPassword(password);
+        await db
+          .prepare(
+            'INSERT INTO users (username, email, first_name, last_name, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)'
+          )
+          .bind(username, email, firstName, lastName, hash, role)
+          .run();
+        return Astro.redirect('/admin/users?added=1');
+      }
+    }
+  }
+}
+
+if (Astro.url.searchParams.has('deleted')) notice = 'Contributor removed.';
+if (Astro.url.searchParams.has('saved')) notice = 'Role updated.';
+if (Astro.url.searchParams.has('added')) notice = 'Contributor added — share their username and password with them.';
+if (Astro.url.searchParams.has('password')) notice = 'Password set — share it with the contributor.';
+
+const users: UserRow[] = db
+  ? ((
+      await db
+        .prepare('SELECT id, username, email, first_name, last_name, role, created_at FROM users ORDER BY created_at')
+        .all<UserRow>()
+    ).results ?? [])
+  : [];
+
+const currentUserId = Astro.locals.user?.id ?? -1;
+
+const inputClass =
+  'py-2.5 px-4 block w-full rounded-xl border border-gray-300 bg-white text-default placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none';
+const labelClass = 'block text-sm font-semibold text-default mb-1.5';
+
+const metadata = { title: 'Contributors — Admin', robots: { index: false, follow: false } };
+---
+
+<Layout metadata={metadata}>
+  <AdminShell title="Contributors" current="users">
+    {notice && <AdminToast message={notice} />}
+    {
+      error && (
+        <p class="mb-6 rounded-xl bg-red-50 text-red-700 px-4 py-3 text-sm" role="alert">
+          {error}
+        </p>
+      )
+    }
+
+    <div class="grid gap-6 lg:grid-cols-3 items-start">
+      <div class="lg:col-span-2 rounded-2xl bg-white shadow-md border border-gray-100 overflow-hidden">
+        {
+          users.length === 0 ? (
+            <div class="p-10 text-center">
+              <Icon name="tabler:users" class="h-10 w-10 mx-auto text-muted mb-3" />
+              <p class="text-muted">
+                No accounts yet. Add the first contributor with the form — give the first account the Admin role.
+              </p>
+            </div>
+          ) : (
+            <div class="overflow-x-auto">
+              <table class="w-full text-left">
+                <thead class="bg-primary/5 text-xs uppercase tracking-wide text-muted">
+                  <tr>
+                    <th scope="col" class="px-5 py-3 font-semibold">
+                      Contributor
+                    </th>
+                    <th scope="col" class="px-5 py-3 font-semibold">
+                      Role
+                    </th>
+                    <th scope="col" class="px-5 py-3 font-semibold text-right">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  {users.map((u) => (
+                    <tr class="hover:bg-primary/[0.03]">
+                      <td class="px-5 py-4">
+                        <span class="font-semibold text-default">
+                          {u.first_name} {u.last_name}
+                        </span>
+                        {u.id === currentUserId && (
+                          <span class="ml-1.5 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-semibold">
+                            you
+                          </span>
+                        )}
+                        <span class="block text-xs text-muted mt-0.5">
+                          {u.username} · {u.email}
+                        </span>
+                      </td>
+                      <td class="px-5 py-4">
+                        {u.id === currentUserId ? (
+                          <span class="text-sm font-semibold capitalize">{u.role}</span>
+                        ) : (
+                          <form method="post" class="flex items-center gap-2">
+                            <input type="hidden" name="action" value="role" />
+                            <input type="hidden" name="id" value={u.id} />
+                            <label class="sr-only" for={`role-${u.id}`}>
+                              Role for {u.username}
+                            </label>
+                            <select
+                              id={`role-${u.id}`}
+                              name="role"
+                              class="py-1.5 px-2.5 rounded-lg border border-gray-300 bg-white text-sm"
+                            >
+                              <option value="editor" selected={u.role === 'editor'}>
+                                Editor
+                              </option>
+                              <option value="admin" selected={u.role === 'admin'}>
+                                Admin
+                              </option>
+                            </select>
+                            <button
+                              type="submit"
+                              class="text-sm font-semibold text-primary hover:underline cursor-pointer"
+                            >
+                              Save
+                            </button>
+                          </form>
+                        )}
+                      </td>
+                      <td class="px-5 py-4">
+                        <div class="flex items-center justify-end gap-3">
+                          <details class="relative">
+                            <summary class="text-sm font-semibold text-primary hover:underline cursor-pointer list-none">
+                              Set password<span class="sr-only"> for {u.username}</span>
+                            </summary>
+                            <form
+                              method="post"
+                              class="absolute right-0 z-10 mt-2 w-64 rounded-xl bg-white shadow-xl ring-1 ring-black/10 p-4 space-y-3"
+                            >
+                              <input type="hidden" name="action" value="password" />
+                              <input type="hidden" name="id" value={u.id} />
+                              <label for={`pw-${u.id}`} class="block text-xs font-semibold text-default">
+                                New password for {u.username}
+                              </label>
+                              <input
+                                id={`pw-${u.id}`}
+                                name="password"
+                                type="password"
+                                minlength="8"
+                                required
+                                autocomplete="new-password"
+                                class="py-2 px-3 block w-full rounded-lg border border-gray-300 bg-white text-sm"
+                              />
+                              <button type="submit" class="btn-primary w-full py-2 text-sm">
+                                Save password
+                              </button>
+                            </form>
+                          </details>
+                          {u.id !== currentUserId && (
+                            <form method="post" data-confirm={u.username}>
+                              <input type="hidden" name="action" value="delete" />
+                              <input type="hidden" name="id" value={u.id} />
+                              <button
+                                type="submit"
+                                class="text-sm font-semibold text-red-700 hover:underline cursor-pointer"
+                              >
+                                Remove<span class="sr-only"> {u.username}</span>
+                              </button>
+                            </form>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        }
+      </div>
+
+      <form method="post" class="rounded-2xl bg-white shadow-md border border-gray-100 p-6 space-y-4">
+        <input type="hidden" name="action" value="add" />
+        <h2 class="font-heading font-bold text-lg text-heading">Add a contributor</h2>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label for="first_name" class={labelClass}>First name</label>
+            <input
+              id="first_name"
+              name="first_name"
+              type="text"
+              value={addForm.first_name}
+              required
+              class={inputClass}
+            />
+          </div>
+          <div>
+            <label for="last_name" class={labelClass}>Last name</label>
+            <input id="last_name" name="last_name" type="text" value={addForm.last_name} class={inputClass} />
+          </div>
+        </div>
+        <div>
+          <label for="username" class={labelClass}>Username</label>
+          <input id="username" name="username" type="text" value={addForm.username} required class={inputClass} />
+        </div>
+        <div>
+          <label for="email" class={labelClass}>Email</label>
+          <input id="email" name="email" type="email" value={addForm.email} required class={inputClass} />
+        </div>
+        <div>
+          <label for="password" class={labelClass}>Password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            minlength="8"
+            required
+            class={inputClass}
+            autocomplete="new-password"
+          />
+          <p class="mt-1.5 text-xs text-muted">
+            At least 8 characters. Share it with the contributor; they log in at /login.
+          </p>
+        </div>
+        <div>
+          <label for="new-role" class={labelClass}>Role</label>
+          <select id="new-role" name="role" class={inputClass}>
+            <option value="editor" selected={addForm.role === 'editor'}>Editor — writes and publishes articles</option>
+            <option value="admin" selected={addForm.role === 'admin'}>Admin — full access, including this page</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-primary w-full">
+          <Icon name="tabler:user-plus" class="h-5 w-5 mr-1.5" /> Add contributor
+        </button>
+      </form>
+    </div>
+  </AdminShell>
+
+  <AdminConfirmDelete />
+</Layout>

@@ -1,0 +1,75 @@
+---
+/**
+ * Numbered pagination for the D1-backed archives (971 posts means real page
+ * numbers, not just prev/next). Keeps ?page=N URLs; page 1 is the bare path.
+ */
+export interface Props {
+  page: number;
+  totalPages: number;
+  base: string;
+  /** Extra query params to carry through (e.g. a search term). */
+  params?: Record<string, string>;
+  label?: string;
+}
+
+const { page, totalPages, base, params = {}, label = 'Article pages' } = Astro.props;
+
+const hrefFor = (p: number) => {
+  const qs = new URLSearchParams({ ...params, ...(p > 1 ? { page: String(p) } : {}) }).toString();
+  return qs ? `${base}?${qs}` : base;
+};
+
+// Windowed page list: 1 … (page-1) page (page+1) … last
+const windowed: (number | '…')[] = [];
+if (totalPages > 1) {
+  const want = new Set(
+    [1, 2, page - 1, page, page + 1, totalPages - 1, totalPages].filter((p) => p >= 1 && p <= totalPages)
+  );
+  let prev = 0;
+  for (const p of [...want].sort((a, b) => a - b)) {
+    if (p - prev > 1) windowed.push('…');
+    windowed.push(p);
+    prev = p;
+  }
+}
+
+const linkClass =
+  'inline-flex items-center justify-center min-w-10 h-10 px-2 rounded-lg text-sm font-semibold border transition-colors';
+const idle = 'border-gray-300 bg-white text-gray-700 hover:border-primary hover:text-primary';
+const active = 'border-primary bg-primary text-white';
+---
+
+{
+  totalPages > 1 && (
+    <nav aria-label={label} class="mt-10 flex flex-wrap items-center justify-center gap-2">
+      {page > 1 && (
+        <a href={hrefFor(page - 1)} rel="prev" class={`${linkClass} ${idle}`}>
+          <span aria-hidden="true">‹</span>
+          <span class="sr-only">Previous page</span>
+        </a>
+      )}
+      {windowed.map((p) =>
+        p === '…' ? (
+          <span aria-hidden="true" class="px-1 text-gray-500">
+            …
+          </span>
+        ) : (
+          <a
+            href={hrefFor(p)}
+            aria-current={p === page ? 'page' : undefined}
+            aria-label={`Page ${p}`}
+            class={`${linkClass} ${p === page ? active : idle}`}
+          >
+            {p}
+          </a>
+        )
+      )}
+      {page < totalPages && (
+        <a href={hrefFor(page + 1)} rel="next" class={`${linkClass} ${idle}`}>
+          <span aria-hidden="true">›</span>
+          <span class="sr-only">Next page</span>
+        </a>
+      )}
+    </nav>
+  )
+}

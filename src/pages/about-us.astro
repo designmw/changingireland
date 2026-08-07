@@ -1,0 +1,308 @@
+---
+export const prerender = false;
+
+import Layout from '~/layouts/PageLayout.astro';
+import PageHeader from '~/components/PageHeader.astro';
+import Image from '~/components/common/Image.astro';
+import { Icon } from 'astro-icon/components';
+import coversImage from '~/assets/images/about-magazine-covers.png';
+
+// The About page from WordPress (changingireland.ie/about-us), redesigned in
+// the contact page's card style. All copy is carried over from the WP export;
+// the other ported pages still render generically through [slug].astro.
+
+const team = [
+  {
+    role: 'Editor / Manager',
+    name: 'Allen Meagher',
+    email: 'editor@changingireland.ie',
+    photo: '/files/uploads/2026/06/allen.jpg',
+  },
+  {
+    role: 'Journalist (part-time)',
+    name: 'Owen Ryan',
+    email: 'owen@changingireland.ie',
+    photo: '/files/uploads/2026/06/Owen-Ryan.jpg',
+  },
+  {
+    role: 'Social Media Management (part-time)',
+    name: 'Gill Moore',
+    email: 'gill@changingireland.ie',
+    photo: '/files/uploads/2026/07/Gill-Moore-new-HS-CROPPED-2.jpg',
+  },
+];
+
+const values = [
+  'A positive approach where possible',
+  'Sustainable',
+  'Inclusive',
+  'Uncompromising commitment',
+  'Integrity',
+  'Presenting news from those who are excluded in a constructive and instructive way',
+];
+
+const metadata = {
+  title: 'About',
+  description:
+    'Changing Ireland is a not-for-profit magazine covering community development in Ireland since 2001. Meet the team, board and funders behind the magazine.',
+};
+---
+
+<Layout metadata={metadata}>
+  <PageHeader
+    title="About Changing Ireland"
+    tagline="Ireland's No. 1 magazine for community development"
+    subtitle="A not-for-profit magazine published in print and online, featuring quality original journalism about community development, social inclusion, collective action, empowerment, equality and human rights in Ireland."
+  />
+
+  <section class="px-4 sm:px-6 lg:px-8 py-12 lg:py-16 mx-auto max-w-7xl">
+    {/* Who we are + magazine covers */}
+    <div class="grid gap-10 lg:grid-cols-2 lg:items-center mb-16">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-primary mb-2">Unique in Ireland</p>
+        <h2 class="font-heading font-extrabold text-2xl md:text-3xl mb-4">
+          Original quality journalism on community development
+        </h2>
+        <p class="text-lg text-muted mb-4">
+          Established in 2001 and based in Moyross, Limerick, Changing Ireland is the most popular and
+          longest-established Community &amp; Voluntary Sector magazine in Ireland.
+        </p>
+        <p class="text-lg text-muted">It is a trusted and valued source of news.</p>
+      </div>
+      <Image
+        src={coversImage}
+        alt="Four recent covers of Changing Ireland magazine fanned out"
+        class="w-full max-w-xl mx-auto"
+        widths={[400, 531]}
+        width={531}
+        height={232}
+        sizes="(max-width: 640px) 400px, 531px"
+        format="webp"
+        loading="eager"
+        fetchpriority="high"
+      />
+    </div>
+
+    {/* Our Mission */}
+    <div class="mb-16">
+      <div class="flex items-center gap-4 mb-6">
+        <h2 class="font-heading font-extrabold text-2xl md:text-3xl whitespace-nowrap">Our Mission</h2>
+        <span class="h-px flex-1 bg-gray-300" aria-hidden="true"></span>
+      </div>
+      <div class="grid gap-6 lg:grid-cols-2">
+        <div class="rounded-2xl bg-primary/5 p-7">
+          <h3 class="flex items-center gap-2.5 font-heading font-extrabold text-lg text-heading mb-3">
+            <Icon name="tabler:target-arrow" class="w-5 h-5 text-primary" aria-hidden="true" />
+            Mission statement
+          </h3>
+          <p class="text-muted">
+            Changing Ireland Community Media CLG will be widely recognised in the public, community and voluntary
+            sectors as being the leading provider of high-quality journalism, citizen reporting and reliable
+            information regarding best practices, achievements and challenges within the community development sector
+            in Ireland.
+          </p>
+        </div>
+        <div class="rounded-2xl border border-gray-200 bg-white shadow-sm p-7">
+          <h3 class="flex items-center gap-2.5 font-heading font-extrabold text-lg text-heading mb-4">
+            <Icon name="tabler:heart" class="w-5 h-5 text-primary" aria-hidden="true" />
+            Our values
+          </h3>
+          <ul class="space-y-2.5 list-none m-0 p-0">
+            {
+              values.map((value) => (
+                <li class="flex items-start gap-2.5 text-default">
+                  <Icon name="tabler:circle-check" class="w-5 h-5 mt-0.5 text-primary shrink-0" aria-hidden="true" />
+                  {value}
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    {/* Voluntary Board of Management */}
+    <div class="mb-16">
+      <div class="flex items-center gap-4 mb-6">
+        <h2 class="font-heading font-extrabold text-2xl md:text-3xl whitespace-nowrap">
+          Voluntary Board of Management
+        </h2>
+        <span class="h-px flex-1 bg-gray-300" aria-hidden="true"></span>
+      </div>
+      <div class="rounded-2xl border border-gray-200 bg-white shadow-sm p-7 mb-6 sm:flex sm:items-center sm:gap-7">
+        <Image
+          src="/files/uploads/2026/06/shane.jpg"
+          alt="Shane O'Sullivan, Chairperson of Changing Ireland"
+          class="w-32 h-32 rounded-2xl object-cover mb-4 sm:mb-0 shrink-0"
+          widths={[128, 256]}
+          width={256}
+          height={256}
+          sizes="128px"
+          format="webp"
+        />
+        <div>
+          <p class="text-xs font-bold uppercase tracking-wider text-primary mb-1">Chairperson</p>
+          <p class="font-heading font-extrabold text-xl text-heading mb-3">Shane O'Sullivan</p>
+          <p class="text-muted">
+            <strong class="text-default">Board members:</strong> Shane O'Sullivan, Andrew O'Byrne, Michael Power,
+            Yvonne Comer, Lisa O'Flaherty and Richard Holohan.
+          </p>
+        </div>
+      </div>
+      <div class="grid gap-6 md:grid-cols-3">
+        <div class="rounded-2xl bg-gray-50 border border-gray-200 p-6">
+          <h3 class="flex items-center gap-2.5 font-heading font-extrabold text-lg text-heading mb-2">
+            <Icon name="tabler:news" class="w-5 h-5 text-primary" aria-hidden="true" />
+            Editorial team
+          </h3>
+          <p class="text-muted">See page 4 of the latest edition.</p>
+        </div>
+        <div class="rounded-2xl bg-gray-50 border border-gray-200 p-6">
+          <h3 class="flex items-center gap-2.5 font-heading font-extrabold text-lg text-heading mb-2">
+            <Icon name="tabler:heart-handshake" class="w-5 h-5 text-primary" aria-hidden="true" />
+            Collaboration
+          </h3>
+          <p class="text-muted">
+            Collaboration is one of the key actions under Changing Ireland's Strategic Plan 2023-2028.{' '}
+            <a href="/contact" class="font-semibold text-primary hover:underline">Get in touch</a>.
+          </p>
+        </div>
+        <div class="rounded-2xl bg-gray-50 border border-gray-200 p-6">
+          <h3 class="flex items-center gap-2.5 font-heading font-extrabold text-lg text-heading mb-2">
+            <Icon name="tabler:mail-forward" class="w-5 h-5 text-primary" aria-hidden="true" />
+            Subscribe
+          </h3>
+          <p class="text-muted">
+            Email{' '}
+            <a href="mailto:editor@changingireland.ie" class="font-semibold text-primary hover:underline break-all">
+              editor@changingireland.ie</a
+            >{' '}
+            with your contact details to join our mailing list and receive the magazine in PDF or print format.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {/* The Team */}
+    <div class="mb-16">
+      <div class="flex items-center gap-4 mb-6">
+        <h2 class="font-heading font-extrabold text-2xl md:text-3xl whitespace-nowrap">The Team</h2>
+        <span class="h-px flex-1 bg-gray-300" aria-hidden="true"></span>
+      </div>
+      <ul class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 list-none m-0 p-0">
+        {
+          team.map((person) => (
+            <li class="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <Image
+                src={person.photo}
+                alt={`${person.name}, ${person.role} at Changing Ireland`}
+                class="w-full aspect-square object-cover"
+                widths={[400, 600]}
+                width={600}
+                height={600}
+                sizes="(max-width: 768px) 400px, 600px"
+                format="webp"
+              />
+              <div class="p-6">
+                <p class="text-xs font-bold uppercase tracking-wider text-primary mb-1">{person.role}</p>
+                <p class="font-heading font-extrabold text-lg text-heading mb-3">{person.name}</p>
+                <a
+                  href={`mailto:${person.email}`}
+                  class="inline-flex items-center gap-2 text-sm text-default hover:text-primary break-all"
+                >
+                  <Icon name="tabler:mail" class="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
+                  {person.email}
+                </a>
+              </div>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    {/* Our History */}
+    <div class="mb-16">
+      <div class="flex items-center gap-4 mb-6">
+        <h2 class="font-heading font-extrabold text-2xl md:text-3xl whitespace-nowrap">Our History</h2>
+        <span class="h-px flex-1 bg-gray-300" aria-hidden="true"></span>
+      </div>
+      <div class="rounded-2xl bg-gray-50 border border-gray-200 p-7">
+        <p class="text-xs font-bold uppercase tracking-wider text-primary mb-1">Est. 2001 in Moyross, Limerick</p>
+        <h3 class="font-heading font-extrabold text-xl text-heading mb-3">25 years of community journalism</h3>
+        <p class="text-muted mb-4">
+          Changing Ireland magazine was launched in 2001 and is an independent national magazine based in Moyross,
+          Limerick.
+        </p>
+        <p class="text-muted">
+          It is published and managed by the not-for-profit organisation{' '}
+          <strong class="text-default">Changing Ireland Community Media CLG</strong>. It is focused on community
+          development and social inclusion.
+        </p>
+      </div>
+    </div>
+
+    {/* Funding, Support & Volunteers */}
+    <div>
+      <div class="flex items-center gap-4 mb-6">
+        <h2 class="font-heading font-extrabold text-2xl md:text-3xl whitespace-nowrap">
+          Funding, Support &amp; Volunteers
+        </h2>
+        <span class="h-px flex-1 bg-gray-300" aria-hidden="true"></span>
+      </div>
+      <div class="grid gap-10 lg:grid-cols-2 lg:items-center">
+        <div>
+          <h3 class="font-heading font-extrabold text-lg text-heading mb-3">Core-funding and support</h3>
+          <p class="text-muted mb-4">
+            Changing Ireland earns some income through social enterprise and is grateful for the core-funding it
+            receives from the{' '}
+            <a
+              href="https://www.gov.ie/en/department-of-rural-and-community-development-and-the-gaeltacht/"
+              target="_blank"
+              rel="noopener"
+              class="font-semibold text-primary hover:underline"
+            >
+              Department of Rural and Community Development and the Gaeltacht</a
+            >.
+          </p>
+          <p class="text-default font-semibold mb-3">We are also grateful for the support of:</p>
+          <ul class="space-y-2.5 list-none m-0 p-0">
+            <li class="flex items-start gap-2.5">
+              <Icon name="tabler:circle-check" class="w-5 h-5 mt-0.5 text-primary shrink-0" aria-hidden="true" />
+              <a
+                href="https://www.facebook.com/p/Moyross-Community-Enterprise-Centre-Ltd-100064307845091/"
+                target="_blank"
+                rel="noopener"
+                class="font-semibold text-primary hover:underline"
+              >
+                Moyross Community Enterprise Centre
+              </a>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <Icon name="tabler:circle-check" class="w-5 h-5 mt-0.5 text-primary shrink-0" aria-hidden="true" />
+              <span>
+                The{' '}
+                <a href="https://ldcn.ie/" target="_blank" rel="noopener" class="font-semibold text-primary hover:underline">
+                  Local Development Companies Network</a
+                >
+              </span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <Icon name="tabler:circle-check" class="w-5 h-5 mt-0.5 text-primary shrink-0" aria-hidden="true" />
+              <span>And <strong class="text-default">volunteers</strong> who have contributed so much over the years.</span>
+            </li>
+          </ul>
+        </div>
+        <Image
+          src="/files/uploads/2026/05/CI-core-funder2-notable-supporters.png"
+          alt="Logos of the Department of Rural and Community Development and the Gaeltacht, the Local Development Companies Network, and Moyross Community Enterprise Centre"
+          class="w-full max-w-xl mx-auto"
+          widths={[400, 696]}
+          width={696}
+          height={430}
+          sizes="(max-width: 640px) 400px, 696px"
+          format="webp"
+        />
+      </div>
+    </div>
+  </section>
+</Layout>

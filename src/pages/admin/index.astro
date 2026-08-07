@@ -1,0 +1,9 @@
+---
+export const prerender = false;
+
+import { isEditor, adminRedirect } from '~/lib/admin';
+
+// /admin is just the entry point — Articles is the default section.
+if (!(await isEditor(Astro))) return Astro.redirect(adminRedirect(Astro));
+return Astro.redirect('/admin/news');
+---

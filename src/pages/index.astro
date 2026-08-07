@@ -1,43 +1,268 @@
 ---
-import { getEntry } from 'astro:content';
+export const prerender = false;
+
 import Layout from '~/layouts/PageLayout.astro';
-import LocalBusinessSchema from '~/components/schema/LocalBusinessSchema.astro';
-import BlockRenderer from '~/components/blocks/BlockRenderer.astro';
+import Grid from '~/components/blog/Grid.astro';
+import GridItem from '~/components/blog/GridItem.astro';
+import AdSlot from '~/components/AdSlot.astro';
+import { getFormattedDate } from '~/utils/utils';
 
-// When the editor manages the homepage it writes src/data/pages/home.json
-// and this route renders it. Without that file (or while it is a draft)
-// the placeholder below renders instead. Astro's route priority means the
-// [...page].astro catch-all can never serve "/", so the homepage has to be
-// handled here.
-const home = await getEntry('page', 'home');
-const useContract = home && !home.data.draft;
+import { getDb } from '~/lib/auth';
+import {
+  getPublishedPosts,
+  getPublishedPage,
+  getFeaturedPosts,
+  getTaxonomyCounts,
+  parseTaxonomies,
+  type PostRow,
+} from '~/lib/posts';
+import { getActiveAds, type AdRow } from '~/lib/ads';
+import { getSetting, HOMEPAGE_CATEGORIES_KEY } from '~/lib/settings';
+import { rowToPost } from '~/lib/post-adapter';
 
-const metadata = useContract
-  ? {
-      title: home.data.metadata.title ?? home.data.title,
-      description: home.data.metadata.description,
-      ignoreTitleTemplate: true,
-      robots: home.data.metadata.robots,
-    }
-  : {
-      title: 'Home',
-      ignoreTitleTemplate: true,
-    };
+// Magazine front page, structured like the WordPress homepage: a dense
+// Latest News hero (editors' Featured articles first), ad banner, more
+// stories, admin-configurable category blocks, second ad, magazine teaser.
+const db = await getDb();
+
+let hero: PostRow[] = [];
+let more: PostRow[] = [];
+let ads: AdRow[] = [];
+let categoryBlocks: { slug: string; title: string; post: PostRow }[] = [];
+
+if (db) {
+  const featured = await getFeaturedPosts(db, 6);
+  const latest = await getPublishedPosts(db, 20);
+  const seen = new Set(featured.map((p) => p.id));
+  hero = [...featured, ...latest.filter((p) => !seen.has(p.id))].slice(0, 6);
+  const heroIds = new Set(hero.map((p) => p.id));
+  more = latest.filter((p) => !heroIds.has(p.id)).slice(0, 8);
+
+  ads = await getActiveAds(db, 2);
+
+  const allCats = await getTaxonomyCounts(db, 'categories');
+  const chosen: string[] = await getSetting(db, HOMEPAGE_CATEGORIES_KEY, []);
+  const slugs = chosen.length > 0 ? chosen : allCats.slice(0, 6).map((c) => c.slug);
+  for (const slug of slugs) {
+    const title = allCats.find((c) => c.slug === slug)?.title ?? slug;
+    const { rows } = await getPublishedPage(db, { category: slug, perPage: 1 });
+    if (rows[0]) categoryBlocks.push({ slug, title, post: rows[0] });
+  }
+}
+
+const lead = hero[0];
+const heroSide = hero.slice(1, 3);
+const heroRow = hero.slice(3, 6);
+
+const primaryCategory = (p: PostRow) => parseTaxonomies(p.categories).filter((c) => c.slug !== 'uncategorized')[0];
+const dateOf = (p: PostRow) => new Date((p.published_at ?? p.created_at).replace(' ', 'T'));
+
+const metadata = {
+  title: 'Changing Ireland — Community development news from Ireland',
+  ignoreTitleTemplate: true,
+  description:
+    'Changing Ireland is the national magazine for community development in Ireland: news, features and voices from communities around the country.',
+};
 ---
 
 <Layout metadata={metadata}>
-  <Fragment slot="head">
-    <LocalBusinessSchema />
-  </Fragment>
+  <h1 class="sr-only">Changing Ireland — community development news</h1>
 
+  {/* ── Latest News hero: 1 lead + 2 side + row of 3 ─────────────────── */}
+  <section class="px-4 sm:px-6 lg:px-8 pt-10 pb-4 mx-auto max-w-7xl">
+    <div class="flex items-center gap-4 mb-6">
+      <h2 class="font-heading font-extrabold text-3xl md:text-4xl whitespace-nowrap">Latest News</h2>
+      <span class="h-px flex-1 bg-gray-300" aria-hidden="true"></span>
+    </div>
+
+    {
+      lead && (
+        <div class="grid gap-8 lg:grid-cols-3 mb-10">
+          <article class="lg:col-span-2">
+            {lead.image_url && (
+              <a
+                href={`/${lead.slug}`}
+                tabindex="-1"
+                aria-hidden="true"
+                class="block mb-4 rounded-sm overflow-hidden bg-gray-100"
+              >
+                <img
+                  src={lead.image_url}
+                  alt=""
+                  width="960"
+                  height="600"
+                  class="w-full aspect-[16/10] object-cover"
+                  loading="eager"
+                  fetchpriority="high"
+                  decoding="async"
+                />
+              </a>
+            )}
+            {primaryCategory(lead) && (
+              <a
+                href={`/category/${primaryCategory(lead)!.slug}`}
+                class="inline-block text-[0.8125rem] font-semibold text-primary hover:underline mb-1"
+              >
+                {primaryCategory(lead)!.title}
+              </a>
+            )}
+            <h3 class="font-heading font-extrabold text-2xl md:text-[2rem] leading-tight mb-2">
+              <a href={`/${lead.slug}`} class="hover:text-primary transition-colors">
+                {lead.title}
+              </a>
+            </h3>
+            <p class="text-muted text-base leading-relaxed line-clamp-3 mb-2">{lead.excerpt}</p>
+            <p class="text-sm text-muted">
+              {lead.author && <span class="font-semibold">{lead.author} · </span>}
+              <time datetime={dateOf(lead).toISOString()}>{getFormattedDate(dateOf(lead))}</time>
+            </p>
+          </article>
+
+          <div class="flex flex-col gap-8">
+            {heroSide.map((p) => (
+              <article>
+                {p.image_url && (
+                  <a
+                    href={`/${p.slug}`}
+                    tabindex="-1"
+                    aria-hidden="true"
+                    class="block mb-3 rounded-sm overflow-hidden bg-gray-100"
+                  >
+                    <img
+                      src={p.image_url}
+                      alt=""
+                      width="480"
+                      height="300"
+                      class="w-full aspect-[16/10] object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </a>
+                )}
+                {primaryCategory(p) && (
+                  <a
+                    href={`/category/${primaryCategory(p)!.slug}`}
+                    class="inline-block text-[0.8125rem] font-semibold text-primary hover:underline mb-1"
+                  >
+                    {primaryCategory(p)!.title}
+                  </a>
+                )}
+                <h3 class="font-heading font-extrabold text-lg leading-snug">
+                  <a href={`/${p.slug}`} class="hover:text-primary transition-colors">
+                    {p.title}
+                  </a>
+                </h3>
+              </article>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    {
+      heroRow.length > 0 && (
+        <div class="grid gap-6 md:grid-cols-3">
+          {heroRow.map((p) => (
+            <GridItem post={rowToPost(p)} />
+          ))}
+        </div>
+      )
+    }
+  </section>
+
+  <AdSlot ad={ads[0]} />
+
+  {/* ── More stories ─────────────────────────────────────────────────── */}
   {
-    useContract ? (
-      <BlockRenderer blocks={home.data.blocks} />
-    ) : (
-      <section class="px-4 py-16 sm:px-6 mx-auto lg:px-8 lg:py-20 max-w-4xl">
-        <h1 class="font-bold font-heading text-4xl md:text-5xl">Home</h1>
-        <p class="mt-4 text-muted">Placeholder. Add your homepage content here.</p>
+    more.length > 0 && (
+      <section class="px-4 sm:px-6 lg:px-8 py-8 mx-auto max-w-7xl">
+        <div class="flex items-center gap-4 mb-6">
+          <h2 class="font-heading font-extrabold text-2xl md:text-3xl whitespace-nowrap">More Stories</h2>
+          <span class="h-px flex-1 bg-gray-300" aria-hidden="true" />
+          <a href="/news" class="text-sm font-semibold text-primary hover:underline whitespace-nowrap">
+            All news
+          </a>
+        </div>
+        <Grid posts={more.map(rowToPost)} />
+        <div class="mt-8 flex justify-center">
+          {/* The live site's green LOAD MORE button — with black text, because
+              the original's white-on-green fails WCAG contrast. */}
+          <a
+            href="/news"
+            class="inline-flex items-center gap-1 rounded-sm bg-accent px-6 py-2.5 text-sm font-bold uppercase tracking-wide text-black hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-black"
+          >
+            Load more ›
+          </a>
+        </div>
       </section>
     )
   }
+
+  {/* ── Category blocks (configured in /admin/settings) ──────────────── */}
+  {
+    categoryBlocks.length > 0 && (
+      <section class="px-4 sm:px-6 lg:px-8 py-12 mx-auto max-w-7xl border-t border-gray-100">
+        <h2 class="sr-only">Browse by category</h2>
+        <div class="grid gap-x-8 gap-y-12 md:grid-cols-2 lg:grid-cols-3">
+          {categoryBlocks.map((block) => (
+            <div>
+              <div class="flex items-center gap-4 mb-5">
+                <h3 class="font-heading font-extrabold text-lg uppercase tracking-wide whitespace-nowrap">
+                  <a href={`/category/${block.slug}`} class="hover:text-primary transition-colors">
+                    {block.title}
+                  </a>
+                </h3>
+                <span class="h-px flex-1 bg-gray-300" aria-hidden="true" />
+              </div>
+              <a
+                href={`/${block.post.slug}`}
+                class="group relative block aspect-[4/5] overflow-hidden rounded-sm bg-gray-800"
+              >
+                {block.post.image_url && (
+                  <img
+                    src={block.post.image_url}
+                    alt=""
+                    width="480"
+                    height="600"
+                    loading="lazy"
+                    decoding="async"
+                    class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+                  />
+                )}
+                {/* Dark gradient keeps the white headline at AA contrast */}
+                <span
+                  class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent"
+                  aria-hidden="true"
+                />
+                <span class="absolute inset-x-0 bottom-0 p-6 pb-7 flex flex-col items-center text-center">
+                  <span class="inline-block rounded-sm bg-primary px-2.5 py-1 text-[0.7rem] font-bold uppercase tracking-wider text-white mb-3">
+                    {block.title}
+                  </span>
+                  <span class="font-heading font-extrabold text-xl leading-snug text-white group-hover:underline decoration-2 underline-offset-2">
+                    {block.post.title}
+                  </span>
+                </span>
+              </a>
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  <AdSlot ad={ads[1]} />
+
+  {/* ── Magazine teaser ──────────────────────────────────────────────── */}
+  <section class="px-4 sm:px-6 lg:px-8 py-12 mx-auto max-w-7xl border-t border-gray-100">
+    <div class="rounded-2xl bg-primary/5 p-8 md:p-10 flex flex-wrap items-center justify-between gap-6">
+      <div>
+        <h2 class="font-heading font-extrabold text-2xl md:text-3xl mb-2">The magazine</h2>
+        <p class="text-muted max-w-xl">
+          Every issue of Changing Ireland is free to read. Browse the full back catalogue of the national community
+          development magazine.
+        </p>
+      </div>
+      <a href="/magazines" class="btn-primary">Browse all issues</a>
+    </div>
+  </section>
 </Layout>

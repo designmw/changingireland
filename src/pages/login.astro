@@ -1,0 +1,80 @@
+---
+export const prerender = false;
+
+import Layout from '~/layouts/PageLayout.astro';
+import { getDb, verifyPassword, createSession, setSessionCookies, displayName } from '~/lib/auth';
+import type { User } from '~/lib/auth';
+
+// Login exists only for the editors who publish from /admin — there is no
+// public registration on this site.
+const redirectTo = Astro.url.searchParams.get('redirect') || '/admin';
+const safeRedirect = redirectTo.startsWith('/') && !redirectTo.startsWith('//') ? redirectTo : '/admin';
+
+if (Astro.locals.user) return Astro.redirect(safeRedirect);
+
+let error = '';
+if (Astro.request.method === 'POST') {
+  const db = await getDb();
+  const form = await Astro.request.formData();
+  const login = String(form.get('email') || '').trim();
+  const password = String(form.get('password') || '');
+  if (!login || !password) {
+    error = 'Please enter your username or email address and password.';
+  } else if (db) {
+    const user = await db
+      .prepare(
+        'SELECT id, email, username, first_name, last_name, password_hash FROM users WHERE email = ? OR username = ?'
+      )
+      .bind(login, login)
+      .first<User & { password_hash: string }>();
+    if (user && (await verifyPassword(password, user.password_hash))) {
+      const sessionId = await createSession(db, user.id);
+      setSessionCookies(Astro.cookies, sessionId, user.first_name || displayName(user));
+      return Astro.redirect(safeRedirect);
+    }
+    error = 'Invalid username/email or password.';
+  } else {
+    error = 'The database is not available. Please try again shortly.';
+  }
+}
+
+const metadata = { title: 'Editor login', robots: { index: false, follow: false } };
+const inputClass =
+  'py-3 px-4 block w-full text-md rounded-lg border border-gray-300 bg-white text-default focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none';
+---
+
+<Layout metadata={metadata}>
+  <section class="bg-primary/5 px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+    <div class="mx-auto max-w-md">
+      <div class="rounded-2xl border border-gray-200 bg-white shadow-lg p-8">
+        <h1 class="font-bold font-heading text-2xl text-heading text-center mb-2">Editor login</h1>
+        <p class="text-muted text-sm text-center mb-6">Sign in to manage articles and magazines.</p>
+        {
+          error && (
+            <p class="mb-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm" role="alert">
+              {error}
+            </p>
+          )
+        }
+        <form method="post">
+          <div class="mb-6">
+            <label for="email" class="block text-sm font-medium mb-1">Username or email</label>
+            <input id="email" name="email" type="text" autocomplete="username" required class={inputClass} />
+          </div>
+          <div class="mb-6">
+            <label for="password" class="block text-sm font-medium mb-1">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              class={inputClass}
+            />
+          </div>
+          <button type="submit" class="btn-primary w-full">Log in</button>
+        </form>
+      </div>
+    </div>
+  </section>
+</Layout>

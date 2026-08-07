@@ -1,0 +1,73 @@
+---
+// Chrome shared by every /admin screen: brand bar, section tabs, logout.
+import { Icon } from 'astro-icon/components';
+
+interface Props {
+  title: string;
+  current?: 'news' | 'magazines' | 'ads' | 'settings' | 'users';
+}
+const { title, current } = Astro.props;
+
+const tabs = [
+  { key: 'news', label: 'Articles', href: '/admin/news', icon: 'tabler:news' },
+  { key: 'magazines', label: 'Magazines', href: '/admin/magazines', icon: 'tabler:book-2' },
+  { key: 'ads', label: 'Ads', href: '/admin/ads', icon: 'tabler:ad-2' },
+  { key: 'settings', label: 'Homepage', href: '/admin/settings', icon: 'tabler:layout-grid' },
+  { key: 'users', label: 'Contributors', href: '/admin/users', icon: 'tabler:users' },
+];
+---
+
+<section class="bg-gradient-to-br from-primary to-secondary text-white">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <Icon name="tabler:settings" class="h-8 w-8" />
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wide text-white/80">Changing Ireland Admin</p>
+        <h1 class="font-bold font-heading text-2xl md:text-3xl tracking-tight">{title}</h1>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <a
+        href="/"
+        class="inline-flex items-center gap-2 rounded-xl bg-white/15 hover:bg-white/25 px-4 py-2 text-sm font-semibold backdrop-blur transition-colors"
+      >
+        <Icon name="tabler:external-link" class="h-4 w-4" /> View site
+      </a>
+      <a
+        href="/api/logout"
+        class="inline-flex items-center gap-2 rounded-xl bg-white/15 hover:bg-white/25 px-4 py-2 text-sm font-semibold backdrop-blur transition-colors"
+      >
+        <Icon name="tabler:logout" class="h-4 w-4" /> Log out
+      </a>
+    </div>
+  </div>
+</section>
+
+<nav aria-label="Admin sections" class="border-b border-gray-200 bg-white">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 overflow-x-auto whitespace-nowrap">
+    {
+      tabs.map((t) => (
+        <a
+          href={t.href}
+          aria-current={current === t.key ? 'page' : undefined}
+          class:list={[
+            'inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors',
+            current === t.key
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted hover:text-primary hover:border-primary/30',
+          ]}
+        >
+          <Icon name={t.icon} class="h-4 w-4" />
+          {t.label}
+        </a>
+      ))
+    }
+  </div>
+</nav>
+
+{/* PageLayout already renders the <main id="main"> landmark around this. */}
+<div class="bg-primary/5 min-h-[60vh]">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <slot />
+  </div>
+</div>

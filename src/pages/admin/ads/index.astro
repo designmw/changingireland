@@ -1,0 +1,169 @@
+---
+export const prerender = false;
+
+import Layout from '~/layouts/PageLayout.astro';
+import AdminShell from '~/components/AdminShell.astro';
+import AdminToast from '~/components/AdminToast.astro';
+import AdminConfirmDelete from '~/components/AdminConfirmDelete.astro';
+import { Icon } from 'astro-icon/components';
+import { isAdmin, adminRedirect } from '~/lib/admin';
+import { getDb } from '~/lib/auth';
+import { getAllAds, deleteAd, getAdById, updateAd, type AdRow } from '~/lib/ads';
+
+if (!(await isAdmin(Astro))) return Astro.redirect(adminRedirect(Astro));
+
+const db = await getDb();
+let notice = '';
+
+if (Astro.request.method === 'POST' && db) {
+  const form = await Astro.request.formData();
+  const action = form.get('action');
+  const id = Number(form.get('id') ?? 0);
+
+  if (action === 'delete' && id) {
+    await deleteAd(db, id);
+    return Astro.redirect('/admin/ads?deleted=1');
+  }
+  if (action === 'toggle' && id) {
+    const ad = await getAdById(db, id);
+    if (ad) {
+      await updateAd(db, id, {
+        label: ad.label,
+        imageKey: ad.image_key,
+        linkUrl: ad.link_url,
+        active: ad.active !== 1,
+        sortOrder: ad.sort_order,
+      });
+    }
+    return Astro.redirect('/admin/ads');
+  }
+}
+
+if (Astro.url.searchParams.has('deleted')) notice = 'Ad deleted.';
+if (Astro.url.searchParams.has('saved')) notice = 'Ad saved.';
+
+const ads: AdRow[] = db ? await getAllAds(db) : [];
+
+const metadata = { title: 'Ads — Admin', robots: { index: false, follow: false } };
+---
+
+<Layout metadata={metadata}>
+  <AdminShell title="Ads" current="ads">
+    {notice && <AdminToast message={notice} />}
+
+    <div class="flex items-center justify-between mb-5">
+      <p class="text-muted text-sm">
+        {ads.length} ad{ads.length === 1 ? '' : 's'} · active ads appear in the homepage ad slots, lowest order first
+      </p>
+      <a href="/admin/ads/edit" class="btn-primary">
+        <Icon name="tabler:plus" class="h-5 w-5 mr-1.5" /> New ad
+      </a>
+    </div>
+
+    {
+      ads.length === 0 ? (
+        <div class="rounded-2xl bg-white shadow-md border border-gray-100 p-10 text-center">
+          <Icon name="tabler:ad-off" class="h-10 w-10 mx-auto text-muted mb-3" />
+          <p class="text-muted">No ads yet. Add one with an image and a link.</p>
+        </div>
+      ) : (
+        <div class="rounded-2xl bg-white shadow-md border border-gray-100 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead class="bg-primary/5 text-xs uppercase tracking-wide text-muted">
+                <tr>
+                  <th scope="col" class="px-5 py-3 font-semibold">
+                    Image
+                  </th>
+                  <th scope="col" class="px-5 py-3 font-semibold">
+                    Ad
+                  </th>
+                  <th scope="col" class="px-5 py-3 font-semibold">
+                    Status
+                  </th>
+                  <th scope="col" class="px-5 py-3 font-semibold">
+                    Order
+                  </th>
+                  <th scope="col" class="px-5 py-3 font-semibold text-right">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                {ads.map((ad) => (
+                  <tr class="hover:bg-primary/[0.03]">
+                    <td class="px-5 py-3">
+                      {ad.image_key ? (
+                        <img
+                          src={`/files/${ad.image_key}`}
+                          alt=""
+                          width="120"
+                          height="40"
+                          loading="lazy"
+                          class="w-28 rounded border border-gray-200 shadow-sm object-contain"
+                        />
+                      ) : (
+                        <span class="block w-28 h-10 rounded bg-primary/10" aria-hidden="true" />
+                      )}
+                    </td>
+                    <td class="px-5 py-3">
+                      <a href={`/admin/ads/edit?id=${ad.id}`} class="font-semibold text-default hover:text-primary">
+                        {ad.label || `Ad ${ad.id}`}
+                      </a>
+                      <span class="block text-xs text-muted mt-0.5 break-all">{ad.link_url}</span>
+                    </td>
+                    <td class="px-5 py-3">
+                      {ad.active ? (
+                        <span class="inline-flex items-center gap-1.5 rounded-full bg-green-100 text-green-800 px-2.5 py-1 text-xs font-semibold">
+                          <Icon name="tabler:circle-check" class="h-3.5 w-3.5" /> Active
+                        </span>
+                      ) : (
+                        <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-200 text-gray-700 px-2.5 py-1 text-xs font-semibold">
+                          <Icon name="tabler:circle-off" class="h-3.5 w-3.5" /> Off
+                        </span>
+                      )}
+                    </td>
+                    <td class="px-5 py-3 text-sm text-muted">{ad.sort_order}</td>
+                    <td class="px-5 py-3">
+                      <div class="flex items-center justify-end gap-3">
+                        <form method="post">
+                          <input type="hidden" name="action" value="toggle" />
+                          <input type="hidden" name="id" value={ad.id} />
+                          <button
+                            type="submit"
+                            class="text-sm font-semibold text-primary hover:underline cursor-pointer"
+                          >
+                            {ad.active ? 'Turn off' : 'Turn on'}
+                            <span class="sr-only"> {ad.label || `ad ${ad.id}`}</span>
+                          </button>
+                        </form>
+                        <a
+                          href={`/admin/ads/edit?id=${ad.id}`}
+                          class="text-sm font-semibold text-primary hover:underline"
+                        >
+                          Edit<span class="sr-only"> {ad.label || `ad ${ad.id}`}</span>
+                        </a>
+                        <form method="post" data-confirm={ad.label}>
+                          <input type="hidden" name="action" value="delete" />
+                          <input type="hidden" name="id" value={ad.id} />
+                          <button
+                            type="submit"
+                            class="text-sm font-semibold text-red-700 hover:underline cursor-pointer"
+                          >
+                            Delete<span class="sr-only"> {ad.label || `ad ${ad.id}`}</span>
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )
+    }
+  </AdminShell>
+
+  <AdminConfirmDelete />
+</Layout>

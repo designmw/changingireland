@@ -1,11 +1,37 @@
 ---
+export const prerender = false;
+
 import Layout from '~/layouts/PageLayout.astro';
-import HeroText from '~/components/widgets/HeroText.astro';
-import ContactUs from '~/components/widgets/Contact.astro';
+import PageHeader from '~/components/PageHeader.astro';
 import LocalBusinessSchema from '~/components/schema/LocalBusinessSchema.astro';
+import { Icon } from 'astro-icon/components';
+import { business } from '~/config/business';
+
+// All the content from the WordPress contact page (changingireland.ie/contact-us),
+// redesigned without a contact form — the team prefers direct email and phone.
+
+const team = [
+  {
+    role: 'Editor / Manager',
+    name: 'Allen Meagher',
+    email: 'editor@changingireland.ie',
+    phone: '061 326057 (reception)',
+  },
+  { role: 'Journalist (part-time)', name: 'Owen Ryan', email: 'owen@changingireland.ie' },
+  { role: 'Social Media Management (part-time)', name: 'Gill Moore', email: 'gill@changingireland.ie' },
+];
+
+const socials = [
+  { label: 'Facebook', icon: 'tabler:brand-facebook', href: 'https://www.facebook.com/ChangingIrelandMagazine' },
+  { label: 'Instagram', icon: 'tabler:brand-instagram', href: 'https://www.instagram.com/changingireland/' },
+  { label: 'LinkedIn', icon: 'tabler:brand-linkedin', href: 'https://www.linkedin.com/company/changing-ireland' },
+  { label: 'YouTube', icon: 'tabler:brand-youtube', href: 'https://www.youtube.com/user/changingireland' },
+];
 
 const metadata = {
   title: 'Contact',
+  description:
+    'Contact the Changing Ireland editorial team in Moyross, Limerick. Send us your community story, event or press release, or ring ahead and visit the office.',
 };
 ---
 
@@ -14,127 +40,175 @@ const metadata = {
     <LocalBusinessSchema />
   </Fragment>
 
-  <HeroText tagline="Contact" title="Get in touch" />
-
-  <ContactUs
-    id="form"
-    title="Drop us a message"
-    description="Tell us what you're looking for and we'll get back to you as soon as we can."
-    inputs={[
-      {
-        type: 'text',
-        name: 'name',
-        label: 'Name',
-      },
-      {
-        type: 'email',
-        name: 'email',
-        label: 'Email',
-      },
-      {
-        type: 'tel',
-        name: 'phone',
-        label: 'Phone',
-        autocomplete: 'tel',
-      },
-    ]}
-    textarea={{
-      label: 'Message',
-    }}
-    disclaimer={{
-      label: 'By submitting this form you agree to our privacy policy.',
-    }}
+  <PageHeader
+    title="Contact Us"
+    tagline="Get in touch"
+    subtitle="Have a story, an event, a press release or an idea? We'd love to hear from you. You are welcome to visit us in Moyross, but it's best to ring ahead or email first."
   />
-</Layout>
 
-<script>
-  // Cloudflare Turnstile global (present only when the widget script has loaded).
-  interface TurnstileApi {
-    render: (el: HTMLElement, opts: Record<string, unknown>) => string;
-  }
-  const win = window as unknown as { turnstile?: TurnstileApi };
+  <section class="px-4 sm:px-6 lg:px-8 py-12 lg:py-16 mx-auto max-w-7xl">
+    {/* Primary contact + office */}
+    <div class="grid gap-6 md:grid-cols-2 mb-14">
+      <div class="rounded-2xl border border-gray-200 bg-white shadow-sm p-7">
+        <h2 class="flex items-center gap-2.5 font-heading font-extrabold text-xl text-heading mb-4">
+          <Icon name="tabler:message-circle" class="w-6 h-6 text-primary" aria-hidden="true" />
+          Talk to the editor
+        </h2>
+        <p class="text-muted mb-5">
+          Contact the editor, Allen Meagher, with stories, events, press releases and ideas.
+        </p>
+        <ul class="space-y-3 list-none m-0 p-0">
+          <li>
+            <a
+              href={`tel:${business.telephone.replace(/\s/g, '')}`}
+              class="inline-flex items-center gap-2.5 font-semibold text-default hover:text-primary"
+            >
+              <Icon name="tabler:phone" class="w-5 h-5 text-primary" aria-hidden="true" />
+              061 326057
+            </a>
+          </li>
+          <li>
+            <a
+              href="mailto:editor@changingireland.ie"
+              class="inline-flex items-center gap-2.5 font-semibold text-default hover:text-primary"
+            >
+              <Icon name="tabler:mail" class="w-5 h-5 text-primary" aria-hidden="true" />
+              editor@changingireland.ie
+            </a>
+          </li>
+        </ul>
+      </div>
 
-  // Explicitly render the Turnstile widget (if configured). Runs on every
-  // astro:page-load so it re-renders after a View Transition into this page.
-  function renderTurnstile(): void {
-    const el = document.getElementById('cf-turnstile');
-    if (!el) return; // Turnstile not enabled
-    if (el.dataset.rendered) return; // already rendered on this DOM node
-    if (!win.turnstile) {
-      window.setTimeout(renderTurnstile, 200); // api.js not ready yet — retry
-      return;
-    }
-    win.turnstile.render(el, { sitekey: el.dataset.sitekey, theme: 'auto' });
-    el.dataset.rendered = '1';
-  }
+      <div class="rounded-2xl border border-gray-200 bg-white shadow-sm p-7">
+        <h2 class="flex items-center gap-2.5 font-heading font-extrabold text-xl text-heading mb-4">
+          <Icon name="tabler:map-pin" class="w-6 h-6 text-primary" aria-hidden="true" />
+          Visit us
+        </h2>
+        <p class="text-muted mb-5">Our office is in the Moyross Community Hub. Ring ahead or email first.</p>
+        <address class="not-italic font-semibold text-default leading-relaxed">
+          Moyross Community Hub,<br />
+          Moyross,<br />
+          Limerick,<br />
+          V94 V0NP
+        </address>
+        <a
+          href="https://www.google.com/maps/search/?api=1&query=Moyross+Community+Hub,+Moyross,+Limerick,+V94+V0NP"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex items-center gap-1.5 mt-4 text-sm font-bold text-primary hover:underline"
+        >
+          Open in Google Maps
+          <Icon name="tabler:external-link" class="w-4 h-4" aria-hidden="true" />
+        </a>
+      </div>
+    </div>
 
-  function showError(form: HTMLFormElement, message: string) {
-    const existing = form.querySelector('.form-error');
-    existing?.remove();
-    const el = document.createElement('p');
-    el.className = 'form-error mt-4 text-sm text-center text-red-600 dark:text-red-400';
-    el.textContent = message;
-    form.appendChild(el);
-  }
+    {/* The team */}
+    <div class="mb-14">
+      <div class="flex items-center gap-4 mb-6">
+        <h2 class="font-heading font-extrabold text-2xl md:text-3xl whitespace-nowrap">The Team</h2>
+        <span class="h-px flex-1 bg-gray-300" aria-hidden="true"></span>
+      </div>
+      <ul class="grid gap-6 md:grid-cols-3 list-none m-0 p-0">
+        {
+          team.map((person) => (
+            <li class="rounded-2xl border border-gray-200 bg-white shadow-sm p-6">
+              <p class="text-xs font-bold uppercase tracking-wider text-primary mb-1">{person.role}</p>
+              <p class="font-heading font-extrabold text-lg text-heading mb-3">{person.name}</p>
+              <ul class="space-y-1.5 list-none m-0 p-0 text-sm">
+                <li>
+                  <a
+                    href={`mailto:${person.email}`}
+                    class="inline-flex items-center gap-2 text-default hover:text-primary break-all"
+                  >
+                    <Icon name="tabler:mail" class="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
+                    {person.email}
+                  </a>
+                </li>
+                {person.phone && (
+                  <li class="inline-flex items-center gap-2 text-default">
+                    <Icon name="tabler:phone" class="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
+                    {person.phone}
+                  </li>
+                )}
+              </ul>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
 
-  function initContactForm(): void {
-    const form = document.getElementById('contact-form') as HTMLFormElement | null;
-    if (!form || form.dataset.bound) return; // guard against double-binding
-    form.dataset.bound = '1';
+    {/* Get involved */}
+    <div class="mb-14">
+      <div class="flex items-center gap-4 mb-6">
+        <h2 class="font-heading font-extrabold text-2xl md:text-3xl whitespace-nowrap">Get Involved</h2>
+        <span class="h-px flex-1 bg-gray-300" aria-hidden="true"></span>
+      </div>
+      <div class="grid gap-6 md:grid-cols-2">
+        <div class="rounded-2xl bg-primary/5 p-7">
+          <h3 class="flex items-center gap-2.5 font-heading font-extrabold text-lg text-heading mb-3">
+            <Icon name="tabler:news" class="w-5 h-5 text-primary" aria-hidden="true" />
+            Got a story to share?
+          </h3>
+          <p class="text-muted">
+            Have you a national story that deserves attention? Are you involved in a community project that is a model
+            of best practice? Have you an event coming up, or a press release you'd like to share? Email
+            <a href="mailto:editor@changingireland.ie" class="font-semibold text-primary hover:underline">
+              editor@changingireland.ie</a
+            >.
+          </p>
+        </div>
+        <div class="rounded-2xl bg-primary/5 p-7">
+          <h3 class="flex items-center gap-2.5 font-heading font-extrabold text-lg text-heading mb-3">
+            <Icon name="tabler:alert-circle" class="w-5 h-5 text-primary" aria-hidden="true" />
+            Spotted an error?
+          </h3>
+          <p class="text-muted">
+            Journalism in Changing Ireland should adhere to the NUJ's Code of Conduct. If you believe there is an error
+            in one of our stories, contact the editor at
+            <a href="mailto:editor@changingireland.ie" class="font-semibold text-primary hover:underline">
+              editor@changingireland.ie</a
+            >. We will make every effort to rectify errors and, if necessary, will issue a correction.
+          </p>
+        </div>
+      </div>
+    </div>
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const honeypot = form.querySelector<HTMLInputElement>('input[name="website"]');
-      if (honeypot?.value) return;
-
-      const submitBtn = form.querySelector<HTMLButtonElement>('[type="submit"]');
-      const originalText = submitBtn?.textContent ?? '';
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Sending…';
-      }
-
-      const formData = new FormData(form);
-      const data: Record<string, string> = {};
-      formData.forEach((v, k) => {
-        data[k] = String(v);
-      });
-
-      try {
-        // No trailing slash. config.yaml ships trailingSlash: false, so
-        // '/api/contact/' 404s before the endpoint is ever reached and the form
-        // fails silently. Keep these two in step if trailingSlash ever changes.
-        const res = await fetch('/api/contact', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
-        const json = await res.json();
-
-        if (res.ok && json.success) {
-          form.innerHTML =
-            '<p class="py-8 text-center text-lg font-medium text-green-600 dark:text-green-400">Thank you — we\'ll be in touch soon.</p>';
-        } else {
-          showError(form, json.error ?? 'Something went wrong. Please try again.');
-          if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalText;
+    {/* History + follow us */}
+    <div class="grid gap-6 md:grid-cols-2">
+      <div class="rounded-2xl bg-gray-50 border border-gray-200 p-7">
+        <p class="text-xs font-bold uppercase tracking-wider text-primary mb-1">Est. 2001 in Moyross, Limerick</p>
+        <h2 class="font-heading font-extrabold text-xl text-heading mb-3">25 years of community journalism</h2>
+        <p class="text-muted">
+          Changing Ireland magazine was launched in 2001 and is an independent national magazine based in Moyross,
+          Limerick. It is published and managed by the not-for-profit organisation Changing Ireland Community Media CLG,
+          and is focused on community development and social inclusion.
+        </p>
+      </div>
+      <div class="rounded-2xl bg-gray-50 border border-gray-200 p-7">
+        <h2 class="font-heading font-extrabold text-xl text-heading mb-3">Connect with us online</h2>
+        <p class="text-muted mb-5">
+          Stay up to date with the latest community development news, stories, events, views and opinion from people
+          changing Ireland.
+        </p>
+        <ul class="flex items-center gap-2 list-none m-0 p-0">
+          {
+            socials.map((s) => (
+              <li>
+                <a
+                  href={s.href}
+                  target="_blank"
+                  rel="noopener"
+                  aria-label={s.label}
+                  class="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-white border border-gray-200 text-gray-700 hover:text-white hover:bg-primary hover:border-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <Icon name={s.icon} class="w-5 h-5" aria-hidden="true" />
+                </a>
+              </li>
+            ))
           }
-        }
-      } catch {
-        showError(form, 'Something went wrong. Please try again.');
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.textContent = originalText;
-        }
-      }
-    });
-  }
-
-  // Fires on first load and after every View Transition navigation.
-  document.addEventListener('astro:page-load', () => {
-    initContactForm();
-    renderTurnstile();
-  });
-</script>
+        </ul>
+      </div>
+    </div>
+  </section>
+</Layout>

@@ -55,24 +55,31 @@ export interface BusinessConfig {
 }
 
 export const business: BusinessConfig = {
-  name: 'Business Name',
-  legalName: 'Business Legal Name Ltd',
+  name: 'Changing Ireland',
+  legalName: 'Changing Ireland Community Media CLG',
+  // A magazine/publisher, not a shopfront — Organization-ish; LocalBusiness
+  // is the safe schema fallback the components support.
   type: 'LocalBusiness',
-  url: 'https://example.com',
-  telephone: '+353 XX XXX XXXX',
-  email: 'info@example.com',
+  url: 'https://changingireland.ie',
+  telephone: '+353 61 326057',
+  email: 'editor@changingireland.ie',
   address: {
-    street: '1 Main Street',
-    locality: 'Tralee',
-    region: 'Co. Kerry',
-    postalCode: 'V92 XXXX',
+    street: 'Moyross Community Hub, Moyross',
+    locality: 'Limerick',
+    region: 'Co. Limerick',
+    postalCode: 'V94 V0NP',
     country: 'IE',
   },
-  image: 'https://example.com/images/business.jpg',
-  description: 'Short business description for schema.',
+  image: 'https://changingireland.ie/wp-content/uploads/2026/07/ci-logo.webp',
+  description:
+    'Changing Ireland is the independent national magazine for community development and social inclusion, published from Moyross, Limerick since 2001.',
   openingHours: ['Mo-Fr 09:00-17:00'],
-  priceRange: '€€',
-  sameAs: [],
+  sameAs: [
+    'https://www.facebook.com/ChangingIrelandMagazine',
+    'https://www.instagram.com/changingireland/',
+    'https://www.linkedin.com/company/changing-ireland',
+    'https://www.youtube.com/user/changingireland',
+  ],
   // Only enable with a REAL rating that is also displayed on the site:
   // aggregateRating: { ratingValue: 4.9, reviewCount: 37 },
 };

@@ -12,7 +12,6 @@ import SiteVerification from '~/components/common/SiteVerification.astro';
 import Analytics from '~/components/common/Analytics.astro';
 import CookieConsent from '~/components/common/CookieConsent.astro';
 import DevBanner from '~/components/common/DevBanner.astro';
-import StickyContact from '~/components/common/StickyContact.astro';
 import BasicScripts from '~/components/common/BasicScripts.astro';
 
 // Comment the line below to disable View Transitions
@@ -29,7 +28,12 @@ const { language, textDirection } = I18N;
 ---
 
 <!doctype html>
-<html lang={language} dir={textDirection} class="2xl:text-[20px]">
+{
+  /* No 2xl root-font scaling: body copy stays 16px at every width
+    (Tommy's standard); the wider layout comes from the container scale in
+    tailwind.css instead. */
+}
+<html lang={language} dir={textDirection}>
   <head>
     <CommonMeta />
     <Favicons />
@@ -46,11 +50,13 @@ const { language, textDirection } = I18N;
   </head>
 
   <body class="antialiased text-default bg-page tracking-tight pb-14 lg:pb-0">
-    {/*
+    {
+      /*
       Skip link — WCAG 2.4.1. The header nav is ~38 tab stops deep once the
       Services/Locations dropdowns open on focus, so keyboard and switch users
       need a way past it. Hidden until focused, then pinned to the top-left.
-    */}
+    */
+    }
     <a
       href="#main"
       class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-md focus:bg-page focus:px-4 focus:py-2.5 focus:font-semibold focus:text-default focus:shadow-lg focus:ring-2 focus:ring-current"
@@ -59,7 +65,10 @@ const { language, textDirection } = I18N;
     </a>
     <slot />
 
-    <StickyContact />
+    {
+      /* StickyContact (mobile call/WhatsApp bar) removed — this is a magazine,
+        not a tradesperson site. Restore from the base theme if ever wanted. */
+    }
     <CookieConsent />
     <DevBanner />
     <BasicScripts />

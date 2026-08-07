@@ -1,0 +1,191 @@
+---
+export const prerender = false;
+
+import Layout from '~/layouts/PageLayout.astro';
+import AdminShell from '~/components/AdminShell.astro';
+import AdminToast from '~/components/AdminToast.astro';
+import AdminConfirmDelete from '~/components/AdminConfirmDelete.astro';
+import { Icon } from 'astro-icon/components';
+import { isAdmin, adminRedirect } from '~/lib/admin';
+import { getDb } from '~/lib/auth';
+import { getAllMagazines, deleteMagazine, type MagazineRow } from '~/lib/magazines';
+
+if (!(await isAdmin(Astro))) return Astro.redirect(adminRedirect(Astro));
+
+const db = await getDb();
+let notice = '';
+
+if (Astro.request.method === 'POST' && db) {
+  const form = await Astro.request.formData();
+  const action = form.get('action');
+  const id = Number(form.get('id') ?? 0);
+
+  if (action === 'delete' && id) {
+    await deleteMagazine(db, id);
+    return Astro.redirect('/admin/magazines?deleted=1');
+  }
+
+  // Reorder: swap sort_order with the neighbour above/below in display order.
+  if ((action === 'up' || action === 'down') && id) {
+    const all = await getAllMagazines(db);
+    const idx = all.findIndex((m) => m.id === id);
+    const other = action === 'up' ? all[idx - 1] : all[idx + 1];
+    const current = all[idx];
+    if (current && other) {
+      // Equal sort_order values would swap into the same place; nudge instead.
+      const a =
+        current.sort_order === other.sort_order ? other.sort_order + (action === 'up' ? 1 : -1) : other.sort_order;
+      await db.prepare('UPDATE magazines SET sort_order = ? WHERE id = ?').bind(a, current.id).run();
+      await db.prepare('UPDATE magazines SET sort_order = ? WHERE id = ?').bind(current.sort_order, other.id).run();
+    }
+    return Astro.redirect('/admin/magazines');
+  }
+}
+
+if (Astro.url.searchParams.has('deleted')) notice = 'Issue deleted.';
+if (Astro.url.searchParams.has('saved')) notice = 'Issue saved.';
+
+const magazines: MagazineRow[] = db ? await getAllMagazines(db) : [];
+
+const metadata = { title: 'Magazines — Admin', robots: { index: false, follow: false } };
+---
+
+<Layout metadata={metadata}>
+  <AdminShell title="Magazines" current="magazines">
+    {notice && <AdminToast message={notice} />}
+
+    <div class="flex items-center justify-between mb-5">
+      <p class="text-muted text-sm">
+        {magazines.length} issue{magazines.length === 1 ? '' : 's'}
+      </p>
+      <a href="/admin/magazines/edit" class="btn-primary">
+        <Icon name="tabler:plus" class="h-5 w-5 mr-1.5" /> New issue
+      </a>
+    </div>
+
+    {
+      magazines.length === 0 ? (
+        <div class="rounded-2xl bg-white shadow-md border border-gray-100 p-10 text-center">
+          <Icon name="tabler:book-off" class="h-10 w-10 mx-auto text-muted mb-3" />
+          <p class="text-muted">No issues yet. Add the first one.</p>
+        </div>
+      ) : (
+        <div class="rounded-2xl bg-white shadow-md border border-gray-100 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead class="bg-primary/5 text-xs uppercase tracking-wide text-muted">
+                <tr>
+                  <th scope="col" class="px-5 py-3 font-semibold">
+                    Cover
+                  </th>
+                  <th scope="col" class="px-5 py-3 font-semibold">
+                    Issue
+                  </th>
+                  <th scope="col" class="px-5 py-3 font-semibold whitespace-nowrap">
+                    Published
+                  </th>
+                  <th scope="col" class="px-5 py-3 font-semibold">
+                    Order
+                  </th>
+                  <th scope="col" class="px-5 py-3 font-semibold text-right">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                {magazines.map((m, i) => (
+                  <tr class="hover:bg-primary/[0.03]">
+                    <td class="px-5 py-3">
+                      {m.cover_key ? (
+                        <img
+                          src={`/files/${m.cover_key}`}
+                          alt=""
+                          width="48"
+                          height="68"
+                          loading="lazy"
+                          class="w-12 rounded border border-gray-200 shadow-sm"
+                        />
+                      ) : (
+                        <span class="block w-12 h-[68px] rounded bg-primary/10" aria-hidden="true" />
+                      )}
+                    </td>
+                    <td class="px-5 py-3">
+                      <a
+                        href={`/admin/magazines/edit?id=${m.id}`}
+                        class="font-semibold text-default hover:text-primary"
+                      >
+                        {m.title}
+                      </a>
+                      <span class="block text-xs text-muted mt-0.5">Issue {m.issue}</span>
+                    </td>
+                    <td class="px-5 py-3 text-sm text-muted whitespace-nowrap">{m.published_date || '—'}</td>
+                    <td class="px-5 py-3">
+                      <div class="flex items-center gap-1">
+                        <form method="post">
+                          <input type="hidden" name="action" value="up" />
+                          <input type="hidden" name="id" value={m.id} />
+                          <button
+                            type="submit"
+                            disabled={i === 0}
+                            class="p-1.5 rounded-lg text-gray-700 hover:text-primary hover:bg-primary/5 disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                          >
+                            <Icon name="tabler:arrow-up" class="h-4 w-4" />
+                            <span class="sr-only">Move {m.title} up</span>
+                          </button>
+                        </form>
+                        <form method="post">
+                          <input type="hidden" name="action" value="down" />
+                          <input type="hidden" name="id" value={m.id} />
+                          <button
+                            type="submit"
+                            disabled={i === magazines.length - 1}
+                            class="p-1.5 rounded-lg text-gray-700 hover:text-primary hover:bg-primary/5 disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                          >
+                            <Icon name="tabler:arrow-down" class="h-4 w-4" />
+                            <span class="sr-only">Move {m.title} down</span>
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                    <td class="px-5 py-3">
+                      <div class="flex items-center justify-end gap-3">
+                        {m.pdf_key && (
+                          <a
+                            href={`/files/${m.pdf_key}`}
+                            target="_blank"
+                            rel="noopener"
+                            class="text-sm font-semibold text-primary hover:underline"
+                          >
+                            View PDF<span class="sr-only"> — {m.title}</span>
+                          </a>
+                        )}
+                        <a
+                          href={`/admin/magazines/edit?id=${m.id}`}
+                          class="text-sm font-semibold text-primary hover:underline"
+                        >
+                          Edit<span class="sr-only"> {m.title}</span>
+                        </a>
+                        <form method="post" data-confirm={m.title}>
+                          <input type="hidden" name="action" value="delete" />
+                          <input type="hidden" name="id" value={m.id} />
+                          <button
+                            type="submit"
+                            class="text-sm font-semibold text-red-700 hover:underline cursor-pointer"
+                          >
+                            Delete<span class="sr-only"> {m.title}</span>
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )
+    }
+  </AdminShell>
+
+  <AdminConfirmDelete />
+</Layout>

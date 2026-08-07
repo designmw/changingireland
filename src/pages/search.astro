@@ -1,0 +1,113 @@
+---
+export const prerender = false;
+
+import Layout from '~/layouts/PageLayout.astro';
+import PageHeader from '~/components/PageHeader.astro';
+import Grid from '~/components/blog/Grid.astro';
+import PageNav from '~/components/blog/PageNav.astro';
+
+import { getDb } from '~/lib/auth';
+import { getPublishedPage, getTaxonomyCounts } from '~/lib/posts';
+import { rowToPost } from '~/lib/post-adapter';
+
+// Server-side search over title, body, and author with a D1 LIKE query,
+// filterable by category and sortable by date. Works without JavaScript —
+// the controls are a plain GET form.
+const db = await getDb();
+const q = (Astro.url.searchParams.get('q') ?? '').trim().slice(0, 100);
+const category = (Astro.url.searchParams.get('category') ?? '').trim().toLowerCase();
+const sort = Astro.url.searchParams.get('sort') === 'oldest' ? ('oldest' as const) : ('newest' as const);
+const pageNum = Math.max(1, Number(Astro.url.searchParams.get('page') ?? 1));
+
+const hasQuery = !!(q || category);
+const result =
+  db && hasQuery
+    ? await getPublishedPage(db, { page: pageNum, q, category: category || undefined, sort })
+    : { rows: [], total: 0, page: 1, totalPages: 1 };
+const posts = result.rows.map(rowToPost);
+const categories = db ? await getTaxonomyCounts(db, 'categories') : [];
+
+// Carried through pagination links
+const params: Record<string, string> = {
+  ...(q ? { q } : {}),
+  ...(category ? { category } : {}),
+  ...(sort !== 'newest' ? { sort } : {}),
+};
+
+const selectClass =
+  'py-2.5 px-3.5 rounded-xl border border-gray-300 bg-white text-sm text-default focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none';
+
+const metadata = {
+  title: q ? `Search: ${q}` : 'Search',
+  description: 'Search the full Changing Ireland archive of community development and social inclusion articles.',
+  robots: { index: false, follow: true },
+};
+---
+
+<Layout metadata={metadata}>
+  <PageHeader title="Search" subtitle="Search the full archive by headline, story text, or author." />
+
+  <section class="px-4 sm:px-6 lg:px-8 py-12 lg:py-16 mx-auto max-w-7xl">
+    <form method="get" action="/search" role="search" class="mb-8 flex flex-wrap items-end gap-3">
+      <div class="flex-1 min-w-56">
+        <label for="site-search" class="block text-sm font-semibold text-default mb-1.5">Search articles</label>
+        <input
+          id="site-search"
+          name="q"
+          type="search"
+          value={q}
+          placeholder="Search articles…"
+          class="py-2.5 px-4 w-full rounded-xl border border-gray-300 bg-white text-default placeholder:text-gray-500 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+        />
+      </div>
+      <div>
+        <label for="search-category" class="block text-sm font-semibold text-default mb-1.5">Category</label>
+        <select id="search-category" name="category" class={selectClass}>
+          <option value="">All categories</option>
+          {
+            categories.map((c) => (
+              <option value={c.slug} selected={c.slug === category}>
+                {c.title} ({c.count})
+              </option>
+            ))
+          }
+        </select>
+      </div>
+      <div>
+        <label for="search-sort" class="block text-sm font-semibold text-default mb-1.5">Sort by</label>
+        <select id="search-sort" name="sort" class={selectClass}>
+          <option value="newest" selected={sort === 'newest'}>Newest first</option>
+          <option value="oldest" selected={sort === 'oldest'}>Oldest first</option>
+        </select>
+      </div>
+      <button type="submit" class="btn-primary py-2.5 px-6">Search</button>
+    </form>
+
+    {
+      hasQuery && (
+        <p class="text-sm text-muted mb-8" role="status">
+          {result.total} result{result.total === 1 ? '' : 's'}
+          {q ? ` for “${q}”` : ''}
+          {category ? ` in ${categories.find((c) => c.slug === category)?.title ?? category}` : ''}
+        </p>
+      )
+    }
+
+    {
+      hasQuery && result.total === 0 ? (
+        <p class="text-muted text-lg py-8">No articles match your search. Try a different word or a shorter phrase.</p>
+      ) : (
+        <>
+          <Grid posts={posts} />
+          <PageNav
+            page={result.page}
+            totalPages={result.totalPages}
+            base="/search"
+            params={params}
+            label="Search result pages"
+          />
+        </>
+      )
+    }
+  </section>
+</Layout>

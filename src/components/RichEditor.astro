@@ -1,0 +1,221 @@
+---
+/**
+ * Quill 2 rich-text editor for the admin screens. Writes clean HTML into a
+ * hidden textarea (named `name`) so the surrounding plain <form method="post">
+ * keeps working exactly as before — and without JavaScript the textarea
+ * itself is shown as a fallback.
+ *
+ * Toolbar images upload to R2 through /api/admin/upload and are inserted by
+ * URL (never base64). A "Edit raw HTML" toggle is there for power users and
+ * keeps imported markup untouched unless the visual editor is actually used.
+ */
+interface Props {
+  name: string;
+  value: string;
+  /** 'full' for articles, 'simple' for short blurbs like magazine contents. */
+  variant?: 'full' | 'simple';
+  label: string;
+  labelSuffix?: string;
+  required?: boolean;
+  hint?: string;
+}
+const { name, value, variant = 'full', label, labelSuffix = '', required = false, hint = '' } = Astro.props;
+const editorId = `rich-${name}`;
+---
+
+<div class="rich-editor" data-rich-editor data-variant={variant} data-editor-id={editorId}>
+  <div class="flex items-baseline justify-between gap-3 mb-1.5">
+    <label for={editorId} class="block text-sm font-semibold text-default">
+      {label}
+      {labelSuffix && <span class="font-normal text-muted">{labelSuffix}</span>}
+    </label>
+    <button
+      type="button"
+      data-rich-toggle
+      class="hidden text-xs font-semibold text-primary hover:underline cursor-pointer"
+      aria-pressed="false"
+    >
+      Edit raw HTML
+    </button>
+  </div>
+
+  {/* Quill mounts here; hidden until initialised so no-JS keeps the textarea.
+      Quill turns this div into .ql-container and inserts the toolbar as a
+      sibling above it — the box chrome lives in the CSS below. */}
+  <div data-rich-mount class="hidden bg-white"></div>
+
+  <textarea
+    id={editorId}
+    name={name}
+    rows={variant === 'full' ? 18 : 8}
+    required={required}
+    class="rich-editor-source py-2.5 px-4 block w-full rounded-xl border border-gray-300 bg-white text-default font-mono text-sm leading-relaxed focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+    >{value}</textarea
+  >
+  {hint && <p class="mt-1.5 text-xs text-muted">{hint}</p>}
+</div>
+
+<style is:global>
+  /* Quill chrome, tuned to the admin look: toolbar and writing area read as
+     one bordered, rounded box. */
+  .rich-editor .ql-toolbar.ql-snow {
+    border: 1px solid rgb(209 213 219);
+    border-radius: 0.75rem 0.75rem 0 0;
+    background: #f9fafb;
+    font-family: inherit;
+  }
+  .rich-editor .ql-container.ql-snow {
+    border: 1px solid rgb(209 213 219);
+    border-top: 0;
+    border-radius: 0 0 0.75rem 0.75rem;
+    font-family: inherit;
+    font-size: 1rem;
+  }
+  .rich-editor .ql-editor {
+    min-height: 20rem;
+    line-height: 1.65;
+    color: rgb(33 33 33);
+  }
+  .rich-editor[data-variant='simple'] .ql-editor {
+    min-height: 9rem;
+  }
+  .rich-editor .ql-editor h2,
+  .rich-editor .ql-editor h3 {
+    font-family: var(--aw-font-heading, inherit);
+    font-weight: 800;
+  }
+  .rich-editor .ql-editor img {
+    max-width: 100%;
+    border-radius: 0.375rem;
+  }
+  .rich-editor .ql-editor a {
+    color: rgb(24 99 220);
+  }
+  .rich-editor.is-raw [data-rich-mount] {
+    display: none;
+  }
+</style>
+
+<script>
+  import Quill from 'quill';
+  import 'quill/dist/quill.snow.css';
+
+  async function uploadImage(file: File): Promise<string | null> {
+    const body = new FormData();
+    body.append('image', file);
+    try {
+      const res = await fetch('/api/admin/upload', { method: 'POST', body });
+      const json = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !json.url) {
+        alert(json.error ?? 'Upload failed — try a smaller image.');
+        return null;
+      }
+      return json.url;
+    } catch {
+      alert('Upload failed — check your connection and try again.');
+      return null;
+    }
+  }
+
+  function initRichEditors() {
+    document.querySelectorAll<HTMLElement>('[data-rich-editor]:not([data-enhanced])').forEach((root) => {
+      root.dataset.enhanced = 'yes';
+      const mount = root.querySelector<HTMLElement>('[data-rich-mount]')!;
+      const source = root.querySelector<HTMLTextAreaElement>('textarea')!;
+      const toggle = root.querySelector<HTMLButtonElement>('[data-rich-toggle]')!;
+      const variant = root.dataset.variant ?? 'full';
+
+      const toolbar =
+        variant === 'full'
+          ? [
+              [{ header: [2, 3, false] }],
+              ['bold', 'italic', 'underline', 'strike'],
+              ['link', 'image', 'blockquote'],
+              [{ list: 'ordered' }, { list: 'bullet' }],
+              [{ align: [] }],
+              ['clean'],
+            ]
+          : [['bold', 'italic'], ['link'], [{ list: 'bullet' }], ['clean']];
+
+      mount.classList.remove('hidden');
+      const quill = new Quill(mount, {
+        theme: 'snow',
+        placeholder: 'Write here…',
+        modules: {
+          toolbar: {
+            container: toolbar,
+            handlers: {
+              image() {
+                const picker = document.createElement('input');
+                picker.type = 'file';
+                picker.accept = 'image/png,image/jpeg,image/webp,image/gif';
+                picker.addEventListener('change', async () => {
+                  const file = picker.files?.[0];
+                  if (!file) return;
+                  const url = await uploadImage(file);
+                  if (!url) return;
+                  const range = quill.getSelection(true);
+                  quill.insertEmbed(range.index, 'image', url, 'user');
+                  quill.setSelection(range.index + 1);
+                });
+                picker.click();
+              },
+            },
+          },
+        },
+      });
+
+      // The toolbar dropdowns (heading level, alignment) ship without an
+      // accessible name — axe aria-command-name, serious.
+      root.querySelectorAll<HTMLElement>('.ql-picker').forEach((p) => {
+        const label = p.classList.contains('ql-header')
+          ? 'Heading level'
+          : p.classList.contains('ql-align')
+            ? 'Text alignment'
+            : 'Editor option';
+        p.querySelector('.ql-picker-label')?.setAttribute('aria-label', label);
+      });
+
+      // Seed the editor with the stored HTML and keep the textarea in sync
+      // (it is what the form actually submits).
+      const seed = source.value.trim();
+      if (seed) {
+        const delta = quill.clipboard.convert({ html: seed });
+        quill.setContents(delta, 'silent');
+      }
+      const sync = () => {
+        const html = quill.getSemanticHTML();
+        source.value = html === '<p></p>' ? '' : html;
+      };
+      quill.on('text-change', sync);
+      sync();
+
+      // The visible textarea is replaced by Quill; keep it in the form but
+      // out of view (except in raw mode).
+      source.classList.add('hidden');
+      // `required` must not block submission while the textarea is hidden.
+      source.removeAttribute('required');
+      toggle.classList.remove('hidden');
+
+      let raw = false;
+      toggle.addEventListener('click', () => {
+        raw = !raw;
+        root.classList.toggle('is-raw', raw);
+        toggle.setAttribute('aria-pressed', String(raw));
+        toggle.textContent = raw ? 'Back to visual editor' : 'Edit raw HTML';
+        if (raw) {
+          source.classList.remove('hidden');
+          source.focus();
+        } else {
+          const delta = quill.clipboard.convert({ html: source.value });
+          quill.setContents(delta, 'silent');
+          sync();
+          source.classList.add('hidden');
+        }
+      });
+    });
+  }
+
+  initRichEditors();
+  document.addEventListener('astro:page-load', initRichEditors);
+</script>

@@ -1,0 +1,387 @@
+---
+export const prerender = false;
+
+import Layout from '~/layouts/PageLayout.astro';
+import PageHeader from '~/components/PageHeader.astro';
+import CiSinglePost from '~/components/blog/CiSinglePost.astro';
+import Grid from '~/components/blog/Grid.astro';
+
+import { getCanonical, getPermalink } from '~/utils/permalinks';
+import { blogPostRobots } from '~/utils/blog';
+import { getDb } from '~/lib/auth';
+import { getPostBySlug, getRelatedPosts, getPublishedPosts, parseTaxonomies, type PostRow } from '~/lib/posts';
+import { rowToPost } from '~/lib/post-adapter';
+import { renderWpBody } from '~/lib/wp-page-render';
+import type { MetaData } from '~/types';
+import type { Post } from '~/types';
+
+// Posts render on demand from D1 so /admin publishing is live immediately.
+// Slugs are root-level, exactly as they were on the WordPress site, so no
+// post URL changed in the rebuild. The ported WordPress pages (volunteering,
+// advertise, …) share this URL space and are checked when no post matches.
+// about-us has its own bespoke page (src/pages/about-us.astro).
+const slug = (Astro.params.slug ?? '').toString();
+const db = await getDb();
+if (!db || !slug) return new Response(null, { status: 404 });
+
+interface WpPage {
+  slug: string;
+  title: string;
+  description: string;
+  sections?: { id: string; title: string }[];
+  html: string;
+}
+const wpPages = Object.fromEntries(
+  Object.values(import.meta.glob<{ default: WpPage }>('../data/wp-pages/*.json', { eager: true })).map((m) => [
+    m.default.slug,
+    m.default,
+  ])
+);
+
+const row = await getPostBySlug(db, slug);
+const isPost = !!row && row.published === 1;
+// Drafts stay invisible; an unknown slug falls through to the WP pages, then 404.
+const wpPage: WpPage | undefined = isPost ? undefined : wpPages[slug.toLowerCase()];
+if (!isPost && !wpPage) return new Response(null, { status: 404 });
+
+// The WP exports open with `<div>EYEBROW</div>` and usually a lede paragraph
+// before the first section heading. Promote those into the PageHeader
+// (tagline + subtitle), matching the bespoke about-us page's design.
+const decodeEntities = (s: string) =>
+  s
+    .replace(/&#8211;/g, '–')
+    .replace(/&#8212;/g, '—')
+    .replace(/&#8216;/g, '‘')
+    .replace(/&#8217;/g, '’')
+    .replace(/&#8220;/g, '“')
+    .replace(/&#8221;/g, '”')
+    .replace(/&#8230;/g, '…')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .trim();
+
+function splitWpHeader(html: string): { tagline?: string; subtitle?: string; body: string } {
+  let rest = html;
+  let tagline: string | undefined;
+  let subtitle: string | undefined;
+  const eat = (re: RegExp) => {
+    const m = rest.match(re);
+    if (m) rest = rest.slice(m[0].length);
+    return m;
+  };
+  eat(/^\s*<div><\/div>\s*/);
+  const t = eat(/^\s*<div>([^<]{2,120})<\/div>\s*/);
+  if (t) tagline = decodeEntities(t[1]);
+  eat(/^\s*<div><\/div>\s*/);
+  const s = eat(/^\s*<div>(?:<p>)?([^<]{20,400}?)(?:<\/p>)?<\/div>\s*/);
+  if (s) subtitle = s[1].trim();
+  return { tagline, subtitle, body: rest };
+}
+
+const normalizeTitle = (s: string) => decodeEntities(s).toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+let wpHeader: ReturnType<typeof splitWpHeader> | undefined;
+let wpSections = wpPage?.sections ?? [];
+if (wpPage) {
+  wpHeader = splitWpHeader(wpPage.html);
+  // A leading section heading that just repeats the page title (e.g. the
+  // "What's On" h2 on /whats-on) would sit right under the identical H1 —
+  // drop it and its sidebar entry.
+  const dup = wpHeader.body.match(/^\s*<div><h2 id="([^"]+)">(?:<strong>)?([^<]+)(?:<\/strong>)?\s*<\/h2><\/div>\s*/);
+  if (dup && normalizeTitle(dup[2]) === normalizeTitle(wpPage.title)) {
+    wpHeader.body = wpHeader.body.slice(dup[0].length);
+    wpSections = wpSections.filter((sec) => sec.id !== dup[1]);
+    // Some pages (whats-on) put the lede after that duplicate heading.
+    if (!wpHeader.subtitle) {
+      const lede = wpHeader.body.match(/^\s*<div>(?:<p>)?([^<]{20,400}?)(?:<\/p>)?<\/div>\s*/);
+      if (lede) {
+        wpHeader.subtitle = lede[1].trim();
+        wpHeader.body = wpHeader.body.slice(lede[0].length);
+      }
+    }
+  }
+  // WP's "Back to top" list blocks point at anchors that no longer exist
+  // (section ids were re-slugged on export). The sticky sidebar covers the
+  // same need, so drop them rather than restyle dead links.
+  wpHeader.body = wpHeader.body.replace(
+    /<div><ul>\s*<li>\s*<a href="#[^"]*">\s*Back to top\s*<\/a>\s*<\/li>\s*<\/ul><\/div>/g,
+    ''
+  );
+}
+
+let url = '';
+let sidebarRelated: { slug: string; title: string; category?: { slug: string; title: string } }[] = [];
+let latest: Post[] = [];
+let metadata: MetaData;
+
+if (isPost) {
+  const post = rowToPost(row as PostRow);
+  url = String(getCanonical(getPermalink(post.permalink, 'post')));
+  // Sidebar "Read more": same-category posts; bottom band: site-wide latest.
+  sidebarRelated = (await getRelatedPosts(db, row as PostRow, 5)).map((r) => ({
+    slug: r.slug,
+    title: r.title,
+    category: parseTaxonomies(r.categories).filter((c) => c.slug !== 'uncategorized')[0],
+  }));
+  latest = (await getPublishedPosts(db, 5))
+    .filter((r) => r.slug !== row!.slug)
+    .slice(0, 4)
+    .map(rowToPost);
+  metadata = {
+    title: row!.title,
+    description: row!.excerpt,
+    canonical: url,
+    robots: { index: blogPostRobots?.index, follow: blogPostRobots?.follow },
+    openGraph: { type: 'article', ...(row!.image_url ? { images: [{ url: row!.image_url }] } : {}) },
+  };
+} else {
+  metadata = {
+    title: wpPage!.title,
+    description: wpPage!.description,
+  };
+}
+---
+
+<Layout metadata={metadata}>
+  {
+    isPost ? (
+      <>
+        <CiSinglePost row={row as PostRow} url={url} related={sidebarRelated}>
+          <Fragment set:html={row!.content} />
+        </CiSinglePost>
+        {/* Grey Latest News band above the footer, as on the live template */}
+        {latest.length > 0 && (
+          <section class="bg-gray-50 border-t border-gray-100">
+            <div class="px-4 sm:px-6 lg:px-8 py-10 mx-auto max-w-7xl">
+              <h2 class="font-heading font-extrabold text-2xl md:text-3xl mb-6">Latest News</h2>
+              <Grid posts={latest} />
+            </div>
+          </section>
+        )}
+      </>
+    ) : (
+      <>
+        <PageHeader title={wpPage!.title} tagline={wpHeader!.tagline} subtitle={wpHeader!.subtitle} />
+        <section class="px-4 sm:px-6 lg:px-8 py-10 lg:py-14 mx-auto max-w-7xl">
+          {/* Every ported page uses the same sidebar grid, even with only one
+              or two sections — a variable content width read as inconsistent. */}
+          <div class="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-12 lg:items-start">
+            {wpSections.length > 0 && (
+              <nav aria-label="On this page" class="mb-8 lg:mb-0 lg:sticky lg:top-24">
+                <details class="lg:hidden rounded-xl border border-gray-200 bg-gray-50 px-4 py-3" open={false}>
+                  <summary class="text-sm font-bold text-heading cursor-pointer">On this page</summary>
+                  <ul class="mt-3 space-y-1.5 list-none m-0 p-0">
+                    {wpSections.map((s) => (
+                      <li>
+                        <a href={`#${s.id}`} class="block text-sm text-gray-700 hover:text-primary py-0.5">
+                          {s.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+                <div class="hidden lg:block">
+                  <p class="text-xs font-bold uppercase tracking-wider text-muted mb-3">On this page</p>
+                  <ul class="space-y-1 list-none m-0 p-0 border-l-2 border-gray-200">
+                    {wpSections.map((s) => (
+                      <li>
+                        <a
+                          href={`#${s.id}`}
+                          class="block text-sm text-gray-700 hover:text-primary hover:border-primary border-l-2 border-transparent -ml-0.5 pl-3.5 py-1 leading-snug transition-colors"
+                        >
+                          {s.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </nav>
+            )}
+            <div
+              class="wp-prose prose max-w-4xl prose-headings:font-heading prose-headings:text-heading prose-a:text-primary prose-img:rounded-xl
+                prose-h2:font-extrabold prose-h2:text-2xl md:prose-h2:text-3xl prose-h2:scroll-mt-24
+                prose-h3:font-extrabold prose-h3:text-xl
+                prose-h4:text-xs prose-h4:font-bold prose-h4:uppercase prose-h4:tracking-wider prose-h4:text-primary prose-h4:mb-1
+                marker:text-primary
+                [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:h-auto [&_iframe]:rounded-md"
+            >
+              <Fragment set:html={renderWpBody(wpHeader!.body)} />
+            </div>
+          </div>
+        </section>
+      </>
+    )
+  }
+</Layout>
+
+{/* The about-us "heading + hairline rule" section style, applied to the WP
+    exports' h2s. The headings come from set:html, so Astro's scoped styles
+    can't reach them; a flex ::after also can't be expressed with prose-h2:*
+    utilities. Hence a global rule keyed off the .wp-prose wrapper. */}
+<style is:global>
+  .wp-prose h2 {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .wp-prose h2::after {
+    content: '';
+    height: 1px;
+    flex: 1 1 0;
+    min-width: 3rem;
+    background: rgb(209 213 219);
+  }
+  /* Tame tall logo/portrait images from the WP exports; wide banners are
+     unaffected. width:auto keeps the aspect ratio when the cap kicks in. */
+  .wp-prose img {
+    max-height: 22rem;
+    width: auto;
+    max-width: 100%;
+  }
+  /* Stat tiles rebuilt from the WP exports' number + label pairs. Equal
+     columns so a row of four fills the line instead of wrapping 3 + 1. */
+  .wp-prose .ci-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(10.5rem, 100%), 1fr));
+    gap: 0.75rem;
+    margin: 1.25em 0;
+  }
+  .wp-prose .ci-stat {
+    display: flex;
+    flex-direction: column;
+    background: rgb(249 250 251);
+    border: 1px solid rgb(229 231 235);
+    border-radius: 1rem;
+    padding: 1.25rem 1.5rem;
+  }
+  .wp-prose .ci-stat-number {
+    font-family: var(--aw-font-heading);
+    font-weight: 800;
+    font-size: 1.875rem;
+    line-height: 1.2;
+    color: var(--aw-color-text-heading);
+  }
+  .wp-prose .ci-stat-label {
+    font-size: 0.875rem;
+    color: var(--aw-color-text-muted);
+    margin-top: 0.25rem;
+    max-width: 14rem;
+  }
+  /* Card grids built from a section's h3 entries, matching about-us. */
+  .wp-prose .ci-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr));
+    gap: 1.25rem;
+    margin: 1.5em 0 2.5em;
+  }
+  .wp-prose .ci-card {
+    background: #fff;
+    border: 1px solid rgb(229 231 235);
+    border-radius: 1rem;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    padding: 1.5rem;
+    margin: 0;
+  }
+  .wp-prose .ci-card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.125rem;
+  }
+  .wp-prose .ci-card p,
+  .wp-prose .ci-card ul,
+  .wp-prose .ci-card ol {
+    font-size: 1rem;
+    margin: 0.5rem 0;
+  }
+  .wp-prose .ci-card > :last-child {
+    margin-bottom: 0;
+  }
+  .wp-prose .ci-card img {
+    max-height: 9rem;
+    width: auto;
+    max-width: 100%;
+    border-radius: 0.5rem;
+    margin: 0.25rem 0 0.5rem;
+  }
+  /* An odd trailing card would sit beside empty space; span the full row and
+     let its image sit large beside the text (e.g. the "Advertise in print"
+     card on /advertise). */
+  .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) {
+    grid-column: 1 / -1;
+  }
+  .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) img {
+    max-height: 15rem;
+    float: right;
+    margin: 0 0 1rem 1.5rem;
+  }
+  .wp-prose .ci-card-eyebrow {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--aw-color-primary);
+    margin: 0 0 0.25rem;
+  }
+  /* h4-led entry cards (awards, funds): the lead heading (an h3 for correct
+     heading order) is styled as the small eyebrow, like the generic h4s. */
+  .wp-prose .ci-card h4 {
+    margin: 0 0 0.25rem;
+  }
+  .wp-prose h3.ci-lead {
+    margin: 1.5em 0 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--aw-color-primary);
+  }
+  .wp-prose .ci-card h3.ci-lead {
+    margin: 0 0 0.25rem;
+  }
+  .wp-prose .ci-card-meta {
+    font-size: 0.8rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--aw-color-text-muted);
+    margin: 0 0 0.5rem;
+  }
+  .wp-prose .ci-group-label {
+    font-family: var(--aw-font-heading);
+    font-weight: 800;
+    font-size: 1.125rem;
+    color: var(--aw-color-text-heading);
+    margin: 2.25rem 0 0.25rem;
+  }
+  /* Standalone photos in the prose flow sit centred rather than hugging the
+     left edge of a wide column. */
+  .wp-prose > img {
+    display: block;
+    margin: 1.5rem auto;
+  }
+  /* Text-left / media-right split for prose sections with images. */
+  .wp-prose .ci-split {
+    display: grid;
+    gap: 1.5rem;
+    align-items: start;
+    margin: 1.25em 0 2em;
+  }
+  @media (min-width: 1024px) {
+    .wp-prose .ci-split {
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+      gap: 2.5rem;
+    }
+  }
+  .wp-prose .ci-split-text > :first-child {
+    margin-top: 0;
+  }
+  .wp-prose .ci-split-media {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .wp-prose .ci-split-media img {
+    width: auto;
+    max-width: 100%;
+    max-height: 20rem;
+    margin: 0 auto;
+  }
+</style>

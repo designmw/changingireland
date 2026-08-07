@@ -1,0 +1,218 @@
+---
+export const prerender = false;
+
+import Layout from '~/layouts/PageLayout.astro';
+import PageHeader from '~/components/PageHeader.astro';
+import { Icon } from 'astro-icon/components';
+import { getFormattedDate } from '~/utils/utils';
+
+// Live feed of the Changing Ireland YouTube channel (@changingireland).
+// The public RSS feed needs no API key and always carries the latest 15
+// uploads; thumbnails come straight from i.ytimg.com. Videos play in-page
+// (click-to-play swaps in a youtube-nocookie embed); without JavaScript each
+// card links out to YouTube.
+const CHANNEL_ID = 'UCTTvouC4gaK_BeE_CLupbTQ';
+const CHANNEL_URL = 'https://www.youtube.com/@changingireland';
+
+interface Video {
+  id: string;
+  title: string;
+  published: Date;
+  description: string;
+}
+
+let videos: Video[] = [];
+try {
+  const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${CHANNEL_ID}`, {
+    headers: { 'User-Agent': 'changingireland-site/1.0' },
+  });
+  if (res.ok) {
+    const xml = await res.text();
+    videos = xml
+      .split('<entry>')
+      .slice(1)
+      .map((entry): Video | null => {
+        const id = entry.match(/<yt:videoId>([\w-]+)<\/yt:videoId>/)?.[1];
+        const title = entry.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? '';
+        const published = entry.match(/<published>([^<]+)<\/published>/)?.[1] ?? '';
+        const description = entry.match(/<media:description>([\s\S]*?)<\/media:description>/)?.[1] ?? '';
+        if (!id) return null;
+        return {
+          id,
+          title: title
+            .replace(/&amp;/g, '&')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, '’'),
+          published: new Date(published),
+          description: description.slice(0, 200),
+        };
+      })
+      .filter((v): v is Video => v !== null);
+  }
+} catch {
+  // Feed unreachable — the page still renders with the channel link.
+}
+
+const [latest, ...rest] = videos;
+const thumb = (id: string, quality = 'hqdefault') => `https://i.ytimg.com/vi/${id}/${quality}.jpg`;
+
+const metadata = {
+  title: 'Videos',
+  description:
+    'Watch the latest videos from Changing Ireland: interviews, community stories and voices from around Ireland, fresh from our YouTube channel.',
+};
+---
+
+<Layout metadata={metadata}>
+  <PageHeader title="Videos" subtitle="Interviews, community stories and voices from around Ireland." />
+
+  <section class="px-4 sm:px-6 lg:px-8 py-10 lg:py-14 mx-auto max-w-7xl">
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-8">
+      <p class="text-sm text-muted">Fresh from our YouTube channel — new videos appear here automatically.</p>
+      <a
+        href={CHANNEL_URL}
+        target="_blank"
+        rel="noopener"
+        class="inline-flex items-center gap-2 rounded-sm bg-[#b3070f] px-4 py-2 text-sm font-bold text-white hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-black"
+      >
+        <Icon name="tabler:brand-youtube" class="w-5 h-5" aria-hidden="true" />
+        Subscribe on YouTube
+      </a>
+    </div>
+
+    {
+      videos.length === 0 ? (
+        <p class="text-muted text-lg">
+          Videos are loading slowly right now — watch everything on
+          <a href={CHANNEL_URL} target="_blank" rel="noopener" class="text-primary hover:underline">
+            our YouTube channel
+          </a>
+          instead.
+        </p>
+      ) : (
+        <>
+          {latest && (
+            <figure class="mb-12">
+              <div class="yt-video relative rounded-lg overflow-hidden bg-black aspect-video" data-video-id={latest.id}>
+                <a
+                  href={`https://www.youtube.com/watch?v=${latest.id}`}
+                  target="_blank"
+                  rel="noopener"
+                  class="yt-video-link group absolute inset-0 block focus:outline-none focus-visible:ring-4 focus-visible:ring-accent"
+                  aria-label={`Play video: ${latest.title}`}
+                >
+                  <img
+                    src={thumb(latest.id, 'maxresdefault')}
+                    alt=""
+                    width="1280"
+                    height="720"
+                    class="absolute inset-0 w-full h-full object-cover"
+                    loading="eager"
+                    fetchpriority="high"
+                  />
+                  <span
+                    class="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors"
+                    aria-hidden="true"
+                  />
+                  <span
+                    class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-flex items-center justify-center w-20 h-14 rounded-2xl bg-black/75 group-hover:bg-[#b3070f] transition-colors"
+                    aria-hidden="true"
+                  >
+                    <Icon name="tabler:player-play-filled" class="w-8 h-8 text-white" />
+                  </span>
+                </a>
+              </div>
+              <figcaption class="mt-4">
+                <span class="block font-heading font-extrabold text-xl md:text-2xl text-heading">{latest.title}</span>
+                <span class="block mt-1 text-sm text-muted">
+                  <time datetime={latest.published.toISOString()}>{getFormattedDate(latest.published)}</time>
+                </span>
+              </figcaption>
+            </figure>
+          )}
+
+          <ul class="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 list-none m-0 p-0">
+            {rest.map((v) => (
+              <li>
+                <figure>
+                  <div class="yt-video relative rounded-lg overflow-hidden bg-black aspect-video" data-video-id={v.id}>
+                    <a
+                      href={`https://www.youtube.com/watch?v=${v.id}`}
+                      target="_blank"
+                      rel="noopener"
+                      class="yt-video-link group absolute inset-0 block focus:outline-none focus-visible:ring-4 focus-visible:ring-accent"
+                      aria-label={`Play video: ${v.title}`}
+                    >
+                      <img
+                        src={thumb(v.id)}
+                        alt=""
+                        width="480"
+                        height="360"
+                        class="absolute inset-0 w-full h-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <span
+                        class="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors"
+                        aria-hidden="true"
+                      />
+                      <span
+                        class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-flex items-center justify-center w-14 h-10 rounded-xl bg-black/75 group-hover:bg-[#b3070f] transition-colors"
+                        aria-hidden="true"
+                      >
+                        <Icon name="tabler:player-play-filled" class="w-6 h-6 text-white" />
+                      </span>
+                    </a>
+                  </div>
+                  <figcaption class="mt-3">
+                    <span class="block font-heading font-bold text-base leading-snug text-heading">{v.title}</span>
+                    <span class="block mt-1 text-sm text-muted">
+                      <time datetime={v.published.toISOString()}>{getFormattedDate(v.published)}</time>
+                    </span>
+                  </figcaption>
+                </figure>
+              </li>
+            ))}
+          </ul>
+
+          <div class="mt-12 flex justify-center">
+            <a
+              href={CHANNEL_URL}
+              target="_blank"
+              rel="noopener"
+              class="inline-flex items-center gap-1 rounded-sm bg-accent px-6 py-2.5 text-sm font-bold uppercase tracking-wide text-black hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-black"
+            >
+              More on YouTube ›
+            </a>
+          </div>
+        </>
+      )
+    }
+  </section>
+
+  <script>
+    // Click-to-play: swap the thumbnail for a youtube-nocookie embed. Keeps
+    // the page free of YouTube iframes (and their cookies) until requested.
+    function initVideos() {
+      document.querySelectorAll<HTMLElement>('.yt-video:not([data-enhanced])').forEach((box) => {
+        box.dataset.enhanced = 'yes';
+        const link = box.querySelector<HTMLAnchorElement>('.yt-video-link');
+        const id = box.dataset.videoId;
+        if (!link || !id) return;
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const iframe = document.createElement('iframe');
+          iframe.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1`;
+          iframe.title = link.getAttribute('aria-label')?.replace(/^Play video: /, '') ?? 'Video';
+          iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+          iframe.allowFullscreen = true;
+          iframe.className = 'absolute inset-0 w-full h-full border-0';
+          box.replaceChildren(iframe);
+          iframe.focus();
+        });
+      });
+    }
+    initVideos();
+    document.addEventListener('astro:page-load', initVideos);
+  </script>
+</Layout>

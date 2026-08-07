@@ -10,7 +10,13 @@ import { business } from '~/config/business';
 // fall back to build-time env from import.meta.env.
 const spec = 'cloudflare:workers';
 const cfMod = await import(/* @vite-ignore */ spec).catch(() => ({}) as Record<string, unknown>);
-const runtimeEnv = ((cfMod as { env?: unknown }).env ?? {}) as Record<string, string | undefined>;
+// `env` must be read lazily, per request. Snapshotting `cfMod.env` into a plain
+// object at module scope captures it before the runtime populates it, so
+// wrangler `vars` silently vanish and build-time .env values win instead.
+// (Same fix as the playtoheal site.)
+const runtimeEnv = new Proxy({} as Record<string, string | undefined>, {
+  get: (_t, key: string) => (cfMod as { env?: Record<string, string | undefined> }).env?.[key],
+});
 
 function escapeHtml(str: string): string {
   return str
@@ -53,8 +59,7 @@ async function verifyTurnstile(token: string, remoteIp: string | null): Promise<
  */
 async function withinRateLimit(request: Request): Promise<boolean> {
   const limiter = runtimeEnv.CONTACT_RATE_LIMIT as unknown as
-    | { limit: (opts: { key: string }) => Promise<{ success: boolean }> }
-    | undefined;
+    { limit: (opts: { key: string }) => Promise<{ success: boolean }> } | undefined;
   if (!limiter?.limit) return true;
 
   const key = request.headers.get('cf-connecting-ip') ?? 'unknown';

@@ -1,7 +1,25 @@
 ---
-import { SITE } from 'astrowind:config';
+import Image from '~/components/common/Image.astro';
+import logo from '~/assets/images/ci/ci-logo.webp';
+import logoOnDark from '~/assets/images/ci/ci-logo-transparent.png';
+
+// The comic-style Changing Ireland masthead logo carried over from the
+// WordPress site. `onDark` swaps in the transparent-background version so the
+// logo sits directly on the black footer instead of in a white box.
+interface Props {
+  class?: string;
+  onDark?: boolean;
+}
+const { class: className = 'w-44 md:w-52', onDark = false } = Astro.props;
 ---
 
-<span class="self-center text-2xl md:text-xl font-bold text-gray-900 whitespace-nowrap dark:text-white">
-  🚀 {SITE?.name}
+<span class={`block ${className}`}>
+  <Image
+    src={onDark ? logoOnDark : logo}
+    alt="Changing Ireland"
+    layout="responsive"
+    width={400}
+    height={225}
+    loading="eager"
+  />
 </span>

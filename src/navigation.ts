@@ -1,36 +1,41 @@
-import { getPermalink, getBlogPermalink } from './utils/permalinks';
+import { getPermalink } from './utils/permalinks';
 import { business } from './config/business';
 
 // Contact hrefs derived from the single source of truth in config/business.ts —
 // they update automatically once the client's real details are filled in.
 const telHref = `tel:${business.telephone.replace(/\s/g, '')}`;
-const whatsappHref = `https://wa.me/${business.telephone.replace(/\D/g, '')}`;
 const emailHref = business.email ? `mailto:${business.email}` : undefined;
 
+// Mirrors the WordPress site's menu one-for-one (same labels, same URLs).
 export const headerData = {
   links: [
+    { text: 'Home', href: getPermalink('/') },
+    { text: 'About', href: getPermalink('/about-us') },
     {
-      text: 'Home',
-      href: getPermalink('/'),
+      text: 'More News',
+      href: getPermalink('/news'),
+      mega: 'news',
+      links: [
+        { text: 'All News', href: getPermalink('/news') },
+        { text: 'Videos', href: getPermalink('/videos') },
+        { text: 'Community', href: getPermalink('/category/community') },
+        { text: 'Development Work', href: getPermalink('/category/development-work') },
+        { text: 'Empowerment', href: getPermalink('/category/empowerment') },
+        { text: 'Funding', href: getPermalink('/category/funding') },
+        { text: 'Inclusion', href: getPermalink('/category/inclusion') },
+      ],
     },
-    {
-      text: 'About',
-      href: getPermalink('/about'),
-    },
-    {
-      text: 'Services',
-      href: getPermalink('/services'),
-    },
-    {
-      text: 'Blog',
-      href: getBlogPermalink(),
-    },
-    {
-      text: 'Contact',
-      href: getPermalink('/contact'),
-    },
+    { text: 'Magazines', href: getPermalink('/magazines'), mega: 'magazines' },
+    { text: 'Advice For Groups', href: getPermalink('/advice-for-groups') },
+    { text: 'Support For Individuals', href: getPermalink('/support-for-individuals') },
+    { text: 'Volunteering', href: getPermalink('/volunteering') },
+    { text: "What's On?", href: getPermalink('/whats-on') },
+    { text: 'Community Development', href: getPermalink('/community-development') },
+    { text: 'The Community Sector', href: getPermalink('/the-community-sector') },
+    { text: 'Advertise', href: getPermalink('/advertise') },
+    { text: 'Studying', href: getPermalink('/studying') },
+    { text: 'Contact', href: getPermalink('/contact') },
   ],
-  actions: [],
 };
 
 // Default footer structure — the standing standard for every client build:
@@ -44,9 +49,9 @@ export const footerData = {
       title: 'Explore',
       links: [
         { text: 'Home', href: getPermalink('/'), icon: 'tabler:home' },
-        { text: 'About', href: getPermalink('/about'), icon: 'tabler:user' },
-        { text: 'Services', href: getPermalink('/services'), icon: 'tabler:briefcase' },
-        { text: 'Blog', href: getBlogPermalink(), icon: 'tabler:news' },
+        { text: 'News', href: getPermalink('/news'), icon: 'tabler:news' },
+        { text: 'Magazines', href: getPermalink('/magazines'), icon: 'tabler:book-2' },
+        { text: 'About', href: getPermalink('/about-us'), icon: 'tabler:user' },
         { text: 'Contact', href: getPermalink('/contact'), icon: 'tabler:message-circle' },
       ],
     },
@@ -54,22 +59,21 @@ export const footerData = {
       title: 'Get in touch',
       links: [
         { text: business.telephone, href: telHref, icon: 'tabler:phone' },
-        { text: 'Message on WhatsApp', href: whatsappHref, icon: 'tabler:brand-whatsapp' },
         ...(business.email ? [{ text: business.email, href: emailHref, icon: 'tabler:mail' }] : []),
         { text: `${business.address.locality}, ${business.address.region}`, icon: 'tabler:map-pin' },
       ],
     },
   ],
-  secondaryLinks: [
-    { text: 'Terms', href: getPermalink('/terms') },
-    { text: 'Privacy Policy', href: getPermalink('/privacy') },
-  ],
+  secondaryLinks: [{ text: 'Privacy Policy', href: getPermalink('/privacy-policy') }],
   socialLinks: [
-    { ariaLabel: 'Instagram', icon: 'tabler:brand-instagram', href: '#' },
-    { ariaLabel: 'WhatsApp', icon: 'tabler:brand-whatsapp', href: whatsappHref },
+    { ariaLabel: 'Facebook', icon: 'tabler:brand-facebook', href: 'https://www.facebook.com/ChangingIrelandMagazine' },
+    { ariaLabel: 'Instagram', icon: 'tabler:brand-instagram', href: 'https://www.instagram.com/changingireland/' },
+    { ariaLabel: 'LinkedIn', icon: 'tabler:brand-linkedin', href: 'https://www.linkedin.com/company/changing-ireland' },
+    { ariaLabel: 'YouTube', icon: 'tabler:brand-youtube', href: 'https://www.youtube.com/user/changingireland' },
     ...(emailHref ? [{ ariaLabel: 'Email', icon: 'tabler:mail', href: emailHref }] : []),
   ],
+  theme: 'dark',
   // The tricolour is inline SVG rather than the 🇮🇪 emoji on purpose: Windows
   // has no flag glyphs and renders regional-indicator pairs as the letters "IE".
-  footNote: `${business.name}. All rights reserved. Website by <a href="https://designmywebsite.ie" target="_blank" rel="noopener noreferrer" class="hover:underline">Design My Website</a> <svg viewBox="0 0 18 12" width="18" height="12" role="img" aria-label="Ireland" class="inline-block align-[-0.15em] ml-1 rounded-[1px] ring-1 ring-black/10 dark:ring-white/20"><rect width="6" height="12" fill="#169B62"/><rect x="6" width="6" height="12" fill="#FFFFFF"/><rect x="12" width="6" height="12" fill="#FF883E"/></svg>`,
+  footNote: `© ${business.legalName}, ${new Date().getFullYear()}. All rights reserved. Website by <a href="https://designmywebsite.ie" target="_blank" rel="noopener noreferrer" class="hover:underline">Design My Website</a> <svg viewBox="0 0 18 12" width="18" height="12" role="img" aria-label="Ireland" class="inline-block align-[-0.15em] ml-1 rounded-[1px] ring-1 ring-black/10 dark:ring-white/20"><rect width="6" height="12" fill="#169B62"/><rect x="6" width="6" height="12" fill="#FFFFFF"/><rect x="12" width="6" height="12" fill="#FF883E"/></svg>`,
 };

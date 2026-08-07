@@ -1,0 +1,219 @@
+---
+export const prerender = false;
+
+import Layout from '~/layouts/PageLayout.astro';
+import AdminShell from '~/components/AdminShell.astro';
+import RichEditor from '~/components/RichEditor.astro';
+import { Icon } from 'astro-icon/components';
+import { isAdmin, adminRedirect } from '~/lib/admin';
+import { getDb, getUploads } from '~/lib/auth';
+import { createMagazine, updateMagazine, getMagazineById } from '~/lib/magazines';
+
+if (!(await isAdmin(Astro))) return Astro.redirect(adminRedirect(Astro));
+
+const db = await getDb();
+const id = Number(Astro.url.searchParams.get('id') ?? 0);
+
+let form = { issue: '', title: '', description: '', published_date: '', cover_key: '', pdf_key: '' };
+let error = '';
+
+if (id && db) {
+  const existing = await getMagazineById(db, id);
+  if (!existing) return Astro.redirect('/admin/magazines');
+  form = {
+    issue: String(existing.issue),
+    title: existing.title,
+    description: existing.description,
+    published_date: existing.published_date,
+    cover_key: existing.cover_key,
+    pdf_key: existing.pdf_key,
+  };
+}
+
+if (Astro.request.method === 'POST' && db) {
+  const fd = await Astro.request.formData();
+  const issue = Number(fd.get('issue') ?? 0);
+  const title = String(fd.get('title') ?? '').trim();
+  const description = String(fd.get('description') ?? '').trim();
+  const publishedDate = String(fd.get('published_date') ?? '').trim();
+  const pdfFile = fd.get('pdf');
+  const coverFile = fd.get('cover');
+
+  form = {
+    issue: String(issue || ''),
+    title,
+    description,
+    published_date: publishedDate,
+    cover_key: form.cover_key,
+    pdf_key: form.pdf_key,
+  };
+
+  const isFile = (f: unknown): f is File => f instanceof File && f.size > 0;
+
+  if (!issue || issue < 1) {
+    error = 'Please give the issue a number (e.g. 93).';
+  } else if (!title) {
+    error = 'Please give the issue a title, e.g. “Issue 93 – Summer 2026: …”.';
+  } else if (!id && !isFile(pdfFile)) {
+    error = 'Please choose the PDF for a new issue.';
+  } else if (isFile(pdfFile) && !/\.pdf$/i.test(pdfFile.name)) {
+    error = 'The magazine file must be a PDF.';
+  } else if (isFile(coverFile) && !/\.(png|jpe?g|webp)$/i.test(coverFile.name)) {
+    error = 'The cover must be a PNG, JPG, or WebP image.';
+  } else {
+    const uploads = await getUploads();
+    let pdfKey = form.pdf_key;
+    let coverKey = form.cover_key;
+
+    if (uploads && isFile(pdfFile)) {
+      pdfKey = `magazines/issue-${issue}.pdf`;
+      await uploads.put(pdfKey, pdfFile.stream(), {
+        httpMetadata: { contentType: 'application/pdf' },
+      });
+    }
+    if (uploads && isFile(coverFile)) {
+      const ext = coverFile.name.match(/\.(png|jpe?g|webp)$/i)?.[0].toLowerCase() ?? '.jpg';
+      coverKey = `magazines/covers/issue-${issue}${ext}`;
+      const type = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+      await uploads.put(coverKey, coverFile.stream(), { httpMetadata: { contentType: type } });
+    }
+
+    const payload = { issue, title, coverKey, pdfKey, description, publishedDate };
+    if (id) await updateMagazine(db, id, payload);
+    else await createMagazine(db, payload);
+    return Astro.redirect('/admin/magazines?saved=1');
+  }
+}
+
+const inputClass =
+  'py-2.5 px-4 block w-full rounded-xl border border-gray-300 bg-white text-default placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none';
+const labelClass = 'block text-sm font-semibold text-default mb-1.5';
+
+const metadata = { title: id ? 'Edit issue — Admin' : 'New issue — Admin', robots: { index: false, follow: false } };
+---
+
+<Layout metadata={metadata}>
+  <AdminShell title={id ? 'Edit issue' : 'New issue'} current="magazines">
+    <a
+      href="/admin/magazines"
+      class="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline mb-5"
+    >
+      <Icon name="tabler:arrow-left" class="h-4 w-4" /> Back to all issues
+    </a>
+
+    {
+      error && (
+        <p class="mb-6 rounded-xl bg-red-50 text-red-700 px-4 py-3 text-sm" role="alert">
+          {error}
+        </p>
+      )
+    }
+
+    <form method="post" enctype="multipart/form-data" class="grid gap-6 lg:grid-cols-3 items-start">
+      <div class="lg:col-span-2 rounded-2xl bg-white shadow-md border border-gray-100 p-6 space-y-5">
+        <div class="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label for="issue" class={labelClass}>Issue number</label>
+            <input id="issue" name="issue" type="number" min="1" value={form.issue} required class={inputClass} />
+          </div>
+          <div>
+            <label for="published_date" class={labelClass}>
+              Published <span class="font-normal text-muted">(optional, YYYY-MM)</span>
+            </label>
+            <input
+              id="published_date"
+              name="published_date"
+              type="text"
+              value={form.published_date}
+              placeholder="2026-04"
+              pattern="\d{4}(-\d{2})?"
+              class={inputClass}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label for="title" class={labelClass}>Title</label>
+          <input
+            id="title"
+            name="title"
+            type="text"
+            value={form.title}
+            required
+            placeholder="Issue 93 – Summer 2026: The big story"
+            class={inputClass}
+          />
+          <p class="mt-1.5 text-xs text-muted">
+            Shown under the cover on the magazines page. Keep the “Issue N – Season Year” start; anything after a colon
+            appears as a subtitle.
+          </p>
+        </div>
+
+        <RichEditor
+          name="description"
+          value={form.description}
+          label="Contents / description"
+          labelSuffix="(optional)"
+          hint="Shown under the issue on the magazines page. One line per item works well; use bold for the lead-in labels."
+        />
+
+        <div>
+          <label for="pdf" class={labelClass}>
+            Magazine PDF {id > 0 && <span class="font-normal text-muted">(leave empty to keep the current file)</span>}
+          </label>
+          <input
+            id="pdf"
+            name="pdf"
+            type="file"
+            accept="application/pdf"
+            class="block w-full text-sm text-default file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:bg-primary file:text-white file:font-semibold file:cursor-pointer hover:file:opacity-90"
+          />
+          {
+            form.pdf_key && (
+              <p class="mt-1.5 text-xs text-muted">
+                Current file:{' '}
+                <a href={`/files/${form.pdf_key}`} target="_blank" rel="noopener" class="text-primary hover:underline">
+                  {form.pdf_key.split('/').pop()} (PDF)
+                </a>
+              </p>
+            )
+          }
+        </div>
+
+        <div>
+          <label for="cover" class={labelClass}>
+            Cover image {id > 0 && <span class="font-normal text-muted">(leave empty to keep the current cover)</span>}
+          </label>
+          <input
+            id="cover"
+            name="cover"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            class="block w-full text-sm text-default file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:bg-primary file:text-white file:font-semibold file:cursor-pointer hover:file:opacity-90"
+          />
+          <p class="mt-1.5 text-xs text-muted">Portrait, roughly 320 × 453 px or larger. PNG, JPG, or WebP.</p>
+        </div>
+      </div>
+
+      <div class="rounded-2xl bg-white shadow-md border border-gray-100 p-6 space-y-5 lg:sticky lg:top-24">
+        {
+          form.cover_key && (
+            <div>
+              <span class={labelClass}>Current cover</span>
+              <img
+                src={`/files/${form.cover_key}`}
+                alt=""
+                width="160"
+                height="227"
+                class="w-40 rounded-lg border border-gray-200 shadow-sm"
+              />
+            </div>
+          )
+        }
+        <button type="submit" class="btn-primary w-full">
+          <Icon name="tabler:device-floppy" class="h-5 w-5 mr-1.5" /> Save issue
+        </button>
+      </div>
+    </form>
+  </AdminShell>
+</Layout>

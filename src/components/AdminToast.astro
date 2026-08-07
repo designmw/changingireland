@@ -1,0 +1,106 @@
+---
+// Animated success toast for admin actions (save / delete). Slides in from
+// the top right, draws a checkmark, and dismisses itself. Falls back to a
+// static banner when the visitor prefers reduced motion. Render it in place
+// of the old inline notice <p> — it takes over announcing via role="status".
+interface Props {
+  message: string;
+}
+const { message } = Astro.props;
+---
+
+<div class="ci-toast" role="status">
+  <span class="ci-toast-badge" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <path class="ci-toast-check" d="M4.5 12.5l5 5 10-11" />
+    </svg>
+  </span>
+  {message}
+</div>
+
+<style>
+  .ci-toast {
+    position: fixed;
+    top: 1.25rem;
+    right: 1.25rem;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: #fff;
+    border: 1px solid rgb(229 231 235);
+    border-left: 4px solid rgb(22 163 74);
+    border-radius: 0.75rem;
+    box-shadow:
+      0 10px 15px -3px rgb(0 0 0 / 0.1),
+      0 4px 6px -4px rgb(0 0 0 / 0.1);
+    padding: 0.875rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: rgb(31 41 55);
+    animation:
+      ci-toast-in 0.45s cubic-bezier(0.21, 1.02, 0.73, 1) both,
+      ci-toast-out 0.4s ease-in 3.6s forwards;
+  }
+  .ci-toast-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 9999px;
+    background: rgb(22 163 74);
+    color: #fff;
+    flex-shrink: 0;
+    animation: ci-toast-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
+  }
+  .ci-toast-badge svg {
+    width: 1rem;
+    height: 1rem;
+  }
+  .ci-toast-check {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+    animation: ci-toast-draw 0.35s ease-out 0.4s forwards;
+  }
+  @keyframes ci-toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(-1.5rem) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @keyframes ci-toast-pop {
+    from {
+      transform: scale(0);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+  @keyframes ci-toast-draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes ci-toast-out {
+    to {
+      opacity: 0;
+      transform: translateY(-0.75rem);
+      visibility: hidden;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ci-toast,
+    .ci-toast-badge,
+    .ci-toast-check {
+      animation: none;
+    }
+    .ci-toast-check {
+      stroke-dashoffset: 0;
+    }
+  }
+</style>

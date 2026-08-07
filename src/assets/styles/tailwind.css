@@ -7,6 +7,13 @@
 @custom-variant intersect (&:not([no-intersect]));
 
 @theme {
+  /* Wider containers than Tailwind's defaults: the old 2xl:text-[20px] root
+     scaling is gone (body copy is a fixed 16px site-wide), so the layout
+     width is restored here instead — max-w-7xl pages now span 1360px. */
+  --container-5xl: 68rem;
+  --container-6xl: 76rem;
+  --container-7xl: 85rem;
+
   --color-primary: var(--aw-color-primary);
   --color-secondary: var(--aw-color-secondary);
   --color-accent: var(--aw-color-accent);
@@ -101,13 +108,52 @@
   box-shadow: none;
 }
 
+/*
+  Expanded burger menu. The header becomes a full-height column: logo row and
+  search bar stay put, the nav fills the rest and scrolls. (The template's old
+  approach — nav fixed at top:70px with no background — painted menu items
+  straight over the logo and search bar.)
+*/
+#header.expanded {
+  height: 100dvh;
+}
+#header.expanded > div:last-child {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
 #header.expanded nav {
-  position: fixed;
-  top: 70px;
-  left: 0;
-  right: 0;
-  bottom: 70px !important;
-  padding: 0 5px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 0.75rem;
+  border-top: 1px solid rgb(229 231 235);
+  padding: 0.25rem 0.25rem 2.5rem;
+}
+#header.expanded nav > ul > li {
+  border-bottom: 1px solid rgb(243 244 246);
+}
+#header.expanded nav > ul > li:last-child {
+  border-bottom: 0;
+}
+#header.expanded nav > ul > li > a,
+#header.expanded nav > ul > li > button {
+  width: 100%;
+  padding: 0.9rem 0.5rem;
+  font-size: 1.0625rem;
+}
+#header.expanded nav .dropdown-menu {
+  margin: -0.25rem 0 0.9rem 0.75rem;
+  border-left: 2px solid rgb(229 231 235);
+}
+#header.expanded nav .dropdown-menu a {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: rgb(55 65 81);
+  padding: 0.55rem 1rem;
+}
+#header.expanded nav .dropdown-menu a:hover {
+  color: var(--aw-color-primary);
 }
 
 .dropdown:focus .dropdown-menu,
