@@ -198,6 +198,21 @@ for (const [n, iss] of all.entries()) {
   process.stdout.write(`  [${n + 1}/${all.length}] issue ${iss.issue}: uploading to R2…\r`);
   putR2(iss.pdfKey, pdfFile, 'application/pdf');
   putR2(iss.coverKey, coverFile, contentTypeOf(iss.coverKey));
+
+  // WebP sibling for PNG/JPEG covers — the /files route serves it to browsers
+  // that accept image/webp (same convention as scripts/webp-media.mjs).
+  if (/\.(png|jpe?g)$/i.test(iss.coverKey)) {
+    const { default: sharp } = await import('sharp');
+    const webpFile = `${coverFile}.webp`;
+    const buf = await sharp(coverFile)
+      .rotate()
+      .resize({ width: 1600, withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toBuffer();
+    fs.writeFileSync(webpFile, buf);
+    putR2(`${iss.coverKey}.webp`, webpFile, 'image/webp');
+    fs.rmSync(webpFile, { force: true });
+  }
 }
 console.log();
 

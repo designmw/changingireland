@@ -99,10 +99,12 @@ const editorId = `rich-${name}`;
 <script>
   import Quill from 'quill';
   import 'quill/dist/quill.snow.css';
+  import { toWebp } from '~/lib/webp-client';
 
   async function uploadImage(file: File): Promise<string | null> {
     const body = new FormData();
-    body.append('image', file);
+    // Compress to WebP client-side; falls back to the original file on failure.
+    body.append('image', await toWebp(file));
     try {
       const res = await fetch('/api/admin/upload', { method: 'POST', body });
       const json = (await res.json()) as { url?: string; error?: string };

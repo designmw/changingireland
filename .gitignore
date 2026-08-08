@@ -25,3 +25,6 @@ pnpm-lock.yaml
 
 # wrangler local cache (astro preview / wrangler dev)
 .wrangler/
+# webp pipeline run state (scripts/webp-media.mjs)
+scripts/data/media-mirror/webp-manifest.*.json
+*.webp-tmp

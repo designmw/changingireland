@@ -97,6 +97,14 @@ Post frontmatter: `title` (required), `publishDate`, `updateDate`, `draft`, `exc
 
 Hero images use `loading="eager"` and `fetchpriority="high"`.
 
+### WebP pipeline for R2-served media (`/files/…`)
+
+`Image.astro` can't transform R2-served files, so those get WebP another way — keep all three parts intact:
+
+- **Existing media**: `node scripts/webp-media.mjs [--remote]` generates a `<key>.webp` sibling in R2 (max 1600px wide, quality 80, sharp) for every mirrored post image, magazine cover, and ad image. Manifest-tracked (`scripts/data/media-mirror/webp-manifest.*.json`), safe to re-run; re-run it after any bulk media import.
+- **Serving**: `src/pages/files/[...path].ts` serves the `.webp` sibling to clients whose `Accept` includes `image/webp` (with `Vary: Accept`), falling back to the original. URLs stored in D1 never change.
+- **Future uploads**: the admin converts PNG/JPEG to WebP in the browser before upload (`src/lib/webp-client.ts`, wired into `RichEditor.astro`, the magazine cover form, and the ads form) — Workers can't run an image encoder. GIFs and existing WebP pass through; conversion failure falls back to the original file, so the server endpoints still accept PNG/JPEG. `scripts/import-magazines.mjs` uploads a `.webp` cover sibling itself.
+
 ## Verification Checklist
 
 After changes, always verify:

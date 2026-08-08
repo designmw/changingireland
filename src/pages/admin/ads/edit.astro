@@ -179,3 +179,11 @@ const metadata = { title: id ? 'Edit ad — Admin' : 'New ad — Admin', robots:
     </form>
   </AdminShell>
 </Layout>
+
+<script>
+  // Convert the chosen ad image to WebP in the browser before the form posts;
+  // the server endpoint still accepts PNG/JPEG if conversion falls back.
+  import { compressFormImages } from '~/lib/webp-client';
+  const form = document.querySelector<HTMLFormElement>('form[enctype="multipart/form-data"]');
+  if (form) compressFormImages(form, ['image']);
+</script>

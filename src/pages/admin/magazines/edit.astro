@@ -217,3 +217,11 @@ const metadata = { title: id ? 'Edit issue — Admin' : 'New issue — Admin', r
     </form>
   </AdminShell>
 </Layout>
+
+<script>
+  // Convert the chosen cover image to WebP in the browser before the form
+  // posts; the PDF input is untouched and PNG/JPEG still works as a fallback.
+  import { compressFormImages } from '~/lib/webp-client';
+  const form = document.querySelector<HTMLFormElement>('form[enctype="multipart/form-data"]');
+  if (form) compressFormImages(form, ['cover']);
+</script>
