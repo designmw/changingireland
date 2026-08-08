@@ -1,5 +1,5 @@
 INSERT INTO magazines (issue, title, cover_key, pdf_key, description, published_date, sort_order)
-VALUES (93, 'Issue 93 – Summer 2026: Architects putting people and planet first!', 'magazines/covers/issue-93.jpg', 'magazines/issue-93.pdf', 'News : New Irish and EU anti-poverty strategies.
+VALUES (93, 'Issue 93 – Summer 2026: Architects putting people and planet first!', 'magazines/covers/issue-93.png', 'magazines/issue-93.pdf', 'News : New Irish and EU anti-poverty strategies.
 MOYROSS: The Berlin Wall came down faster.
 THE MCCONVILLES: Like father, like son.
 EU: Highlighting where we excel.
