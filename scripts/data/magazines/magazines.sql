@@ -1,4 +1,26 @@
 INSERT INTO magazines (issue, title, cover_key, pdf_key, description, published_date, sort_order)
+VALUES (93, 'Issue 93 – Summer 2026: Architects putting people and planet first!', 'magazines/covers/issue-93.jpg', 'magazines/issue-93.pdf', 'News : New Irish and EU anti-poverty strategies.
+MOYROSS: The Berlin Wall came down faster.
+THE MCCONVILLES: Like father, like son.
+EU: Highlighting where we excel.
+MINISTER AGREES: No medicine is a match for social farming.
+‘Miasma’ : Colin Murphy’s new play perfect in community settings.
+Anna Moore : The Mammy of Irish Boxing.
+women IN POLITICS : Plan now for 2029.
+WHEEL SUMMIT: Minister Buttimer, Séamus Boland & more.
+CambodiAN visitors: Spotlight on our co-ops.
+Social Enterprise: Seeking a ‘New Deal’
+LEADER : Campaigners raise concerns.
+COMMUNITY CONNECTIONS : Interview with Catherine Lane.
+ukraine – IReland : Armen’s volunteering story.
+LEADER in Carlow: Outdoors hub success.
+Celebrations : LGBTQ+ Pride, Africa Day & Traveller Pride.', '2026-08', 93)
+ON CONFLICT(issue) DO UPDATE SET
+  title = excluded.title, pdf_key = excluded.pdf_key,
+  cover_key = CASE WHEN excluded.cover_key != '' THEN excluded.cover_key ELSE magazines.cover_key END,
+  description = CASE WHEN excluded.description != '' THEN excluded.description ELSE magazines.description END,
+  published_date = excluded.published_date, sort_order = excluded.sort_order;
+INSERT INTO magazines (issue, title, cover_key, pdf_key, description, published_date, sort_order)
 VALUES (92, 'Issue 92 – Spring 2026: We Want Change Before We Die!', 'magazines/covers/issue-92.png', 'magazines/issue-92.pdf', 'LEAD STORY – WE WANT CHANGE BEFORE WE DIE!
 • NEWS : – €4m for rural social enterprise through PEACEPLUS. • WE WANT CHANGE BEFORE WE DIE!
 – Community worker provides an unique perspective. – ‘Before We Die’ founder Tony Murray tells his family’s story. – Taoiseach commits to act on issues raised. – Revisit policies, suggests Des North, St John of God.
@@ -576,30 +598,7 @@ CHLOE CAREY: Anti-body-shaming video goes viral.
 VOLUNTEER LOCKDOWN DIARIES: Now truly unique.
 FOOD: Collaboration across country.
 GAMBIA: Logical that community is favoured over individuals.
-EDITOR’S FAMILY NEWSDESK', '2020-08', 69)
-ON CONFLICT(issue) DO UPDATE SET
-  title = excluded.title, pdf_key = excluded.pdf_key,
-  cover_key = CASE WHEN excluded.cover_key != '' THEN excluded.cover_key ELSE magazines.cover_key END,
-  description = CASE WHEN excluded.description != '' THEN excluded.description ELSE magazines.description END,
-  published_date = excluded.published_date, sort_order = excluded.sort_order;
-INSERT INTO magazines (issue, title, cover_key, pdf_key, description, published_date, sort_order)
-VALUES (68, 'Issue 68: Community Childcare / Good News in a time of coronavirus (Spring 2020)', 'magazines/covers/issue-68.png', 'magazines/issue-68.pdf', 'COVER: Early Years March.
-Journalism opportunities.
-Early Years march.
-EDITORIAL: Coronavirus V Communities.
-FLASHBACK: Female empowerment in 2001 in The Liberties.
-CAMPAIGNS: Why communities want change.
-Social skills: Grants rush.
-DIGI-SKILLS: An Cosán on the case.
-HOLOCAUST SURVIVOR TOMI REICHENTAL: Whispers lead to murder.
-MY JOURNEY: Of use to individuals & society.
-LEADER: Supporting Meath River Rescue.
-INTERVIEW: Kevin McCarthy, Sec. General, Dept of Rural & Comm Dev’t.
-LIMERICK’S URBAN CO-OP: 24/7 success.
-NORTH DUBLIN: Showcasing successes.
-YOUTUBE: Mayo migrants show the way.
-DON MULLAN, EYE-WITNESS: Treasure peace.
-HSE ADVICE: During an epidemic.
+EDITOR’S FAMILY NEWSDESK
 Contact Us
 editor@changingireland.ie 061-326057 (reception) Moyross Community Hub Moyross Limerick V94 V0NP .tdi_58{vertical-align:baseline}.tdi_58>.wpb_wrapper,.tdi_58>.wpb_wrapper>.tdc-elements{display:block}.tdi_58>.wpb_wrapper>.tdc-elements{width:100%}.tdi_58>.wpb_wrapper>.vc_row_inner{width:auto}.tdi_58>.wpb_wrapper{width:auto;height:auto} .tdi_59{margin-bottom:15px!important;padding-bottom:5px!important;border-color:rgba(255,255,255,0.4)!important;border-style:solid!important;border-width:0px 0px 1px 0px!important}@media (min-width:768px) and (max-width:1018px){.tdi_59{width:90%!important}} .tdi_59{text-align:left!important}.tdi_59 .tdm-descr{color:var(--tt-extra-color);font-family:var(--tt-primary-font)!important;font-size:16px!important;line-height:1.6!important;font-weight:700!important;text-transform:uppercase!important}@media (min-width:768px) and (max-width:1018px){.tdi_59 .tdm-descr{font-size:13px!important}}@media (max-width:767px){.tdi_59 .tdm-descr{font-size:14px!important}} Where to find us
 © Changing Ireland Community Media CLG, 2026. Privacy Policy - Website by Design My Website
@@ -618,7 +617,14 @@ No cookies to display.
 Performance cookies are used to understand and analyse the key performance indexes of the website which helps in delivering a better user experience for the visitors.
 No cookies to display.
 Advertisement cookies are used to provide visitors with customised advertisements based on the pages you visited previously and to analyse the effectiveness of the ad campaigns.
-No cookies to display.', '2020-08', 68)
+No cookies to display.', '2020-08', 69)
+ON CONFLICT(issue) DO UPDATE SET
+  title = excluded.title, pdf_key = excluded.pdf_key,
+  cover_key = CASE WHEN excluded.cover_key != '' THEN excluded.cover_key ELSE magazines.cover_key END,
+  description = CASE WHEN excluded.description != '' THEN excluded.description ELSE magazines.description END,
+  published_date = excluded.published_date, sort_order = excluded.sort_order;
+INSERT INTO magazines (issue, title, cover_key, pdf_key, description, published_date, sort_order)
+VALUES (68, 'Issue 68 – Summer 2020', 'magazines/covers/issue-68.png', 'magazines/issue-68.pdf', '', '2020-08', 68)
 ON CONFLICT(issue) DO UPDATE SET
   title = excluded.title, pdf_key = excluded.pdf_key,
   cover_key = CASE WHEN excluded.cover_key != '' THEN excluded.cover_key ELSE magazines.cover_key END,
