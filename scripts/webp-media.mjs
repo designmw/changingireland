@@ -132,7 +132,9 @@ async function handle({ key, file }) {
     const original = fs.statSync(file).size;
     // failOn:'truncated' rejects corrupt mirror downloads instead of encoding
     // garbage; rotate() bakes the EXIF orientation in (WebP viewers vary).
-    const image = sharp(file, { failOn: 'truncated' }).rotate();
+    // limitInputPixels:false lifts sharp's ~268MP decode cap — some scanned
+    // magazine posters exceed it, and these are our own trusted files.
+    const image = sharp(file, { failOn: 'truncated', limitInputPixels: false }).rotate();
     const meta = await image.metadata();
     const resized = (meta.width ?? 0) > MAX_WIDTH;
     const buf = await image
