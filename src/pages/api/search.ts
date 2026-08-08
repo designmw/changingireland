@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { getDb } from '~/lib/auth';
-import { parseTaxonomies, type PostRow } from '~/lib/posts';
+import { LIVE_WHERE, parseTaxonomies, type PostRow } from '~/lib/posts';
 
 /**
  * Typeahead behind the header search box: top 8 published posts matching the
@@ -24,7 +24,7 @@ export const GET: APIRoute = async ({ url }) => {
       `SELECT title, slug, author, categories, image_url, COALESCE(published_at, created_at) AS date,
               (title LIKE ?) AS title_hit
          FROM posts
-        WHERE published = 1 AND (title LIKE ? OR author LIKE ? OR content LIKE ?)
+        WHERE ${LIVE_WHERE} AND (title LIKE ? OR author LIKE ? OR content LIKE ?)
         ORDER BY title_hit DESC, COALESCE(published_at, created_at) DESC
         LIMIT 8`
     )

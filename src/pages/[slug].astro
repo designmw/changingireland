@@ -9,7 +9,7 @@ import Grid from '~/components/blog/Grid.astro';
 import { getCanonical, getPermalink } from '~/utils/permalinks';
 import { blogPostRobots } from '~/utils/blog';
 import { getDb } from '~/lib/auth';
-import { getPostBySlug, getRelatedPosts, getPublishedPosts, parseTaxonomies, type PostRow } from '~/lib/posts';
+import { getPostBySlug, getRelatedPosts, getPublishedPosts, isLive, parseTaxonomies, type PostRow } from '~/lib/posts';
 import { rowToPost } from '~/lib/post-adapter';
 import { renderWpBody } from '~/lib/wp-page-render';
 import type { MetaData } from '~/types';
@@ -39,8 +39,9 @@ const wpPages = Object.fromEntries(
 );
 
 const row = await getPostBySlug(db, slug);
-const isPost = !!row && row.published === 1;
-// Drafts stay invisible; an unknown slug falls through to the WP pages, then 404.
+const isPost = !!row && isLive(row);
+// Drafts and not-yet-due scheduled posts stay invisible; an unknown slug
+// falls through to the WP pages, then 404.
 const wpPage: WpPage | undefined = isPost ? undefined : wpPages[slug.toLowerCase()];
 if (!isPost && !wpPage) return new Response(null, { status: 404 });
 

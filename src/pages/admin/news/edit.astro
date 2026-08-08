@@ -36,6 +36,7 @@ let form = {
   author: '',
   featured: 0,
   published: 0,
+  published_at: '', // UTC instant as stored; the picker shows it in local time
 };
 let error = '';
 
@@ -80,6 +81,7 @@ if (id && db) {
     author: existing.author,
     featured: existing.featured,
     published: existing.published,
+    published_at: existing.published_at ?? '',
   };
 }
 
@@ -96,6 +98,10 @@ if (Astro.request.method === 'POST' && db) {
   const featured = fd.get('featured') === 'on';
   let slug = String(fd.get('slug') ?? '').trim();
   let excerpt = String(fd.get('excerpt') ?? '').trim();
+  // The hidden field carries the exact UTC instant (set by the page script
+  // from the picker's local time). Without JavaScript the raw picker value
+  // comes through instead and is treated as UTC.
+  const publishedAt = String(fd.get('published_at_utc') ?? '').trim() || String(fd.get('published_at') ?? '').trim();
 
   slug = slug ? slugify(slug) : slugify(title);
   if (!excerpt) excerpt = makeExcerpt(content);
@@ -112,6 +118,7 @@ if (Astro.request.method === 'POST' && db) {
     author,
     featured: featured ? 1 : 0,
     published: publish ? 1 : 0,
+    published_at: publishedAt,
   };
 
   if (!title) {
@@ -135,6 +142,7 @@ if (Astro.request.method === 'POST' && db) {
       author,
       featured,
       publish,
+      publishedAt,
     };
     if (id) await updatePost(db, id, payload);
     else await createPost(db, payload);
@@ -283,6 +291,25 @@ const metadata = {
           </label>
           <p class="mt-1.5 text-xs text-muted">
             Unpublished articles are saved as drafts and are not visible on the site.
+          </p>
+        </div>
+
+        <div>
+          <label for="published_at" class={labelClass}>
+            Publish date &amp; time <span class="font-normal text-muted">(optional)</span>
+          </label>
+          <input
+            id="published_at"
+            name="published_at"
+            type="datetime-local"
+            data-published-at
+            data-utc={form.published_at}
+            class={inputClass}
+          />
+          <input type="hidden" name="published_at_utc" data-published-at-utc />
+          <p class="mt-1.5 text-xs text-muted">
+            Left blank, it is set when the article is first published. A past date moves the article in the archive. A
+            future date queues it: tick Published and the article appears on the site at that time.
           </p>
         </div>
 
@@ -457,10 +484,40 @@ const metadata = {
     render();
   }
 
+  // Publish date: the picker works in the editor's local time, the database
+  // stores UTC. On load, fill the picker from the stored UTC instant; on
+  // submit, write the picker's value back as UTC into the hidden field.
+  function initPublishedAt() {
+    const input = document.querySelector<HTMLInputElement>('input[data-published-at]');
+    const hidden = document.querySelector<HTMLInputElement>('input[data-published-at-utc]');
+    if (!input || !hidden || input.dataset.enhanced === 'yes') return;
+    input.dataset.enhanced = 'yes';
+
+    const utc = input.dataset.utc ?? '';
+    if (utc) {
+      // Both stored formats parse: ISO-with-T, or the WordPress import's
+      // space-separated form (normalised to ISO and marked as UTC).
+      const iso = utc.replace(' ', 'T');
+      const d = new Date(/[Z+]/.test(iso) ? iso : `${iso}Z`);
+      if (!isNaN(d.getTime())) {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        input.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+    }
+
+    input.form?.addEventListener('submit', () => {
+      // new Date() reads the datetime-local value in the browser's timezone,
+      // so toISOString() yields the right UTC instant.
+      hidden.value = input.value ? new Date(input.value).toISOString() : '';
+    });
+  }
+
   initCatPicker();
   initAuthorPicker();
+  initPublishedAt();
   document.addEventListener('astro:page-load', () => {
     initCatPicker();
     initAuthorPicker();
+    initPublishedAt();
   });
 </script>

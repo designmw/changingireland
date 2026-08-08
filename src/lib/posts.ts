@@ -75,6 +75,25 @@ export function makeExcerpt(content: string, limit = 200): string {
 
 const ORDER = 'ORDER BY COALESCE(published_at, created_at) DESC';
 
+/**
+ * A post is publicly visible when it's published AND its publish time (if
+ * set) has passed — a future published_at is a scheduled post, queued until
+ * that moment. datetime() normalises both stored formats (ISO-with-T from the
+ * admin, space-separated from the WordPress import) and datetime('now') is
+ * UTC, matching the UTC instants the admin stores.
+ */
+export const LIVE_WHERE = "published = 1 AND (published_at IS NULL OR datetime(published_at) <= datetime('now'))";
+
+/** The LIVE_WHERE rule for a row already in hand (e.g. the single-post page). */
+export function isLive(row: PostRow): boolean {
+  if (row.published !== 1) return false;
+  if (!row.published_at) return true;
+  const iso = row.published_at.replace(' ', 'T');
+  const t = new Date(/[Z+]/.test(iso) ? iso : `${iso}Z`);
+  // An unparseable stamp counts as live rather than vanishing the post.
+  return isNaN(t.getTime()) || t.getTime() <= Date.now();
+}
+
 export async function getAllPosts(db: D1Database): Promise<PostRow[]> {
   const { results } = await db.prepare(`SELECT * FROM posts ${ORDER}`).all<PostRow>();
   return results ?? [];
@@ -97,7 +116,7 @@ export async function getPublishedPage(
   } = {}
 ): Promise<PostListPage> {
   const perPage = opts.perPage ?? POSTS_PER_PAGE;
-  const where: string[] = ['published = 1'];
+  const where: string[] = [LIVE_WHERE];
   const binds: (string | number)[] = [];
 
   if (opts.category) {
@@ -135,14 +154,14 @@ export async function getPublishedPage(
 /** Featured posts for the homepage hero, newest first. */
 export async function getFeaturedPosts(db: D1Database, limit = 6): Promise<PostRow[]> {
   const { results } = await db
-    .prepare(`SELECT * FROM posts WHERE published = 1 AND featured = 1 ${ORDER} LIMIT ?`)
+    .prepare(`SELECT * FROM posts WHERE ${LIVE_WHERE} AND featured = 1 ${ORDER} LIMIT ?`)
     .bind(limit)
     .all<PostRow>();
   return results ?? [];
 }
 
 export async function getPublishedPosts(db: D1Database, limit = 0): Promise<PostRow[]> {
-  const sql = `SELECT * FROM posts WHERE published = 1 ${ORDER}${limit ? ` LIMIT ${limit}` : ''}`;
+  const sql = `SELECT * FROM posts WHERE ${LIVE_WHERE} ${ORDER}${limit ? ` LIMIT ${limit}` : ''}`;
   const { results } = await db.prepare(sql).all<PostRow>();
   return results ?? [];
 }
@@ -163,13 +182,13 @@ export async function getRelatedPosts(db: D1Database, row: PostRow, limit = 4): 
   const cats = parseTaxonomies(row.categories);
   if (cats.length > 0) {
     const { results } = await db
-      .prepare(`SELECT * FROM posts WHERE published = 1 AND id != ? AND categories LIKE ? ${ORDER} LIMIT ?`)
+      .prepare(`SELECT * FROM posts WHERE ${LIVE_WHERE} AND id != ? AND categories LIKE ? ${ORDER} LIMIT ?`)
       .bind(row.id, `%"slug":${JSON.stringify(cats[0].slug)}%`, limit)
       .all<PostRow>();
     if (results && results.length > 0) return results;
   }
   const { results } = await db
-    .prepare(`SELECT * FROM posts WHERE published = 1 AND id != ? ${ORDER} LIMIT ?`)
+    .prepare(`SELECT * FROM posts WHERE ${LIVE_WHERE} AND id != ? ${ORDER} LIMIT ?`)
     .bind(row.id, limit)
     .all<PostRow>();
   return results ?? [];
@@ -184,7 +203,7 @@ export async function getTaxonomyCounts(
   db: D1Database,
   column: 'categories' | 'tags'
 ): Promise<(Taxonomy & { count: number })[]> {
-  const { results } = await db.prepare(`SELECT ${column} AS tax FROM posts WHERE published = 1`).all<{ tax: string }>();
+  const { results } = await db.prepare(`SELECT ${column} AS tax FROM posts WHERE ${LIVE_WHERE}`).all<{ tax: string }>();
   const counts = new Map<string, Taxonomy & { count: number }>();
   for (const r of results ?? []) {
     for (const t of parseTaxonomies(r.tax)) {
@@ -219,6 +238,12 @@ export interface PostInput {
   author?: string;
   featured?: boolean;
   publish: boolean;
+  /**
+   * UTC instant to publish at (ISO string). Empty/undefined means automatic:
+   * stamped the first time the post goes live, kept thereafter. A future
+   * instant queues the post — it goes live on the site at that moment.
+   */
+  publishedAt?: string;
 }
 
 export async function createPost(db: D1Database, p: PostInput): Promise<number> {
@@ -239,22 +264,27 @@ export async function createPost(db: D1Database, p: PostInput): Promise<number> 
       p.author ?? '',
       p.featured ? 1 : 0,
       p.publish ? 1 : 0,
-      p.publish ? new Date().toISOString() : null
+      p.publishedAt || (p.publish ? new Date().toISOString() : null)
     )
     .run();
   return Number(res.meta.last_row_id);
 }
 
 export async function updatePost(db: D1Database, id: number, p: PostInput): Promise<void> {
-  // published_at is stamped the first time a post goes live and kept thereafter,
-  // so re-editing a published post doesn't reorder the archive.
+  // An explicit publishedAt always wins (backdating or scheduling). Otherwise
+  // published_at is stamped the first time a post goes live and kept
+  // thereafter, so re-editing a published post doesn't reorder the archive.
+  const publishedAt = p.publishedAt ?? '';
   await db
     .prepare(
       `UPDATE posts
           SET title = ?, slug = ?, content = ?, excerpt = ?, image_url = ?, image_alt = ?,
               categories = ?, tags = ?, author = ?, featured = ?,
               published = ?, updated_at = datetime('now'),
-              published_at = CASE WHEN ? = 1 AND published_at IS NULL THEN ? ELSE published_at END
+              published_at = CASE
+                WHEN ? != '' THEN ?
+                WHEN ? = 1 AND published_at IS NULL THEN ?
+                ELSE published_at END
         WHERE id = ?`
     )
     .bind(
@@ -269,6 +299,8 @@ export async function updatePost(db: D1Database, id: number, p: PostInput): Prom
       p.author ?? '',
       p.featured ? 1 : 0,
       p.publish ? 1 : 0,
+      publishedAt,
+      publishedAt,
       p.publish ? 1 : 0,
       new Date().toISOString(),
       id
