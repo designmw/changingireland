@@ -39,9 +39,11 @@ const editorId = `rich-${name}`;
     </button>
   </div>
 
-  {/* Quill mounts here; hidden until initialised so no-JS keeps the textarea.
+  {
+    /* Quill mounts here; hidden until initialised so no-JS keeps the textarea.
       Quill turns this div into .ql-container and inserts the toolbar as a
-      sibling above it — the box chrome lives in the CSS below. */}
+      sibling above it — the box chrome lives in the CSS below. */
+  }
   <div data-rich-mount class="hidden bg-white"></div>
 
   <textarea
@@ -56,6 +58,10 @@ const editorId = `rich-${name}`;
 </div>
 
 <style is:global>
+  /* Anchors the floating image toolbar, which is positioned against this box. */
+  .rich-editor {
+    position: relative;
+  }
   /* Quill chrome, tuned to the admin look: toolbar and writing area read as
      one bordered, rounded box. */
   .rich-editor .ql-toolbar.ql-snow {
@@ -94,12 +100,114 @@ const editorId = `rich-${name}`;
   .rich-editor.is-raw [data-rich-mount] {
     display: none;
   }
+
+  /* ── Floating toolbar for a clicked image ─────────────────────────────── */
+  .rich-editor .ql-editor img.rich-image-selected {
+    outline: 3px solid var(--aw-color-primary, #2e7412);
+    outline-offset: 2px;
+  }
+  .rich-image-tools {
+    position: absolute;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.375rem;
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow:
+      0 10px 15px -3px rgb(0 0 0 / 0.1),
+      0 4px 6px -4px rgb(0 0 0 / 0.1);
+    border: 1px solid rgb(229 231 235);
+  }
+  .rich-image-tools[hidden] {
+    display: none;
+  }
+  .rich-image-tools-row {
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+  }
+  .rich-image-tools button {
+    padding: 0.3rem 0.6rem;
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgb(33 33 33);
+    background: transparent;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .rich-image-tools button:hover {
+    background: rgb(243 244 246);
+  }
+  .rich-image-tools button[aria-pressed='true'] {
+    background: var(--aw-color-primary, #2e7412);
+    color: #fff;
+  }
+  .rich-image-tools button.is-danger {
+    color: rgb(185 28 28);
+  }
+  .rich-image-tools button.is-danger:hover {
+    background: rgb(254 242 242);
+  }
+  .rich-image-tools-sep {
+    width: 1px;
+    align-self: stretch;
+    margin: 0.125rem 0.25rem;
+    background: rgb(229 231 235);
+  }
+  .rich-image-alt {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.375rem;
+    padding: 0.25rem 0.25rem 0.375rem;
+    border-top: 1px solid rgb(243 244 246);
+  }
+  .rich-image-alt[hidden] {
+    display: none;
+  }
+  .rich-image-alt label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgb(107 114 128);
+    margin-bottom: 0.25rem;
+  }
+  .rich-image-alt input {
+    width: 18rem;
+    max-width: 60vw;
+    padding: 0.35rem 0.55rem;
+    border: 1px solid rgb(209 213 219);
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+  }
+  .rich-image-alt input:focus {
+    outline: none;
+    border-color: var(--aw-color-primary, #2e7412);
+    box-shadow: 0 0 0 2px rgb(46 116 18 / 0.2);
+  }
 </style>
 
 <script>
   import Quill from 'quill';
   import 'quill/dist/quill.snow.css';
   import { toWebp } from '~/lib/webp-client';
+
+  /** Open a file picker and resolve with the chosen image, if any. */
+  function pickImage(): Promise<File | null> {
+    return new Promise((resolve) => {
+      const picker = document.createElement('input');
+      picker.type = 'file';
+      picker.accept = 'image/png,image/jpeg,image/webp,image/gif';
+      picker.addEventListener('change', () => resolve(picker.files?.[0] ?? null));
+      // A cancelled picker fires no 'change', so the promise simply never
+      // settles — nothing is queued on it, so there's nothing to leak.
+      picker.click();
+    });
+  }
 
   async function uploadImage(file: File): Promise<string | null> {
     const body = new FormData();
@@ -147,20 +255,14 @@ const editorId = `rich-${name}`;
           toolbar: {
             container: toolbar,
             handlers: {
-              image() {
-                const picker = document.createElement('input');
-                picker.type = 'file';
-                picker.accept = 'image/png,image/jpeg,image/webp,image/gif';
-                picker.addEventListener('change', async () => {
-                  const file = picker.files?.[0];
-                  if (!file) return;
-                  const url = await uploadImage(file);
-                  if (!url) return;
-                  const range = quill.getSelection(true);
-                  quill.insertEmbed(range.index, 'image', url, 'user');
-                  quill.setSelection(range.index + 1);
-                });
-                picker.click();
+              async image() {
+                const file = await pickImage();
+                if (!file) return;
+                const url = await uploadImage(file);
+                if (!url) return;
+                const range = quill.getSelection(true);
+                quill.insertEmbed(range.index, 'image', url, 'user');
+                quill.setSelection(range.index + 1);
               },
             },
           },
@@ -176,6 +278,171 @@ const editorId = `rich-${name}`;
             ? 'Text alignment'
             : 'Editor option';
         p.querySelector('.ql-picker-label')?.setAttribute('aria-label', label);
+      });
+
+      // ── Image tools ─────────────────────────────────────────────────────
+      // Clicking an image in the editor opens a small toolbar over it:
+      // replace the file, set alt text, align it, or remove it. Quill 2 ships
+      // no image UI at all, so without this an image can only be deleted by
+      // selecting it and pressing backspace.
+      const tools = document.createElement('div');
+      tools.className = 'rich-image-tools';
+      tools.hidden = true;
+      tools.setAttribute('role', 'toolbar');
+      tools.setAttribute('aria-label', 'Image options');
+      // The id comes off the wrapper's data attribute — this script is bundled
+      // separately and can't see the component's frontmatter variables.
+      const altId = `${root.dataset.editorId ?? 'rich'}-alt`;
+      tools.innerHTML = `
+        <div class="rich-image-tools-row">
+          <button type="button" data-img-act="replace">Replace</button>
+          <button type="button" data-img-act="alt" aria-expanded="false">Alt text</button>
+          <span class="rich-image-tools-sep" aria-hidden="true"></span>
+          <button type="button" data-img-align="" aria-label="Align left" title="Align left">Left</button>
+          <button type="button" data-img-align="center" aria-label="Align centre" title="Align centre">Centre</button>
+          <button type="button" data-img-align="right" aria-label="Align right" title="Align right">Right</button>
+          <span class="rich-image-tools-sep" aria-hidden="true"></span>
+          <button type="button" data-img-act="remove" class="is-danger">Remove</button>
+        </div>
+        <div class="rich-image-alt" hidden>
+          <div>
+            <label for="${altId}">Image description (alt text)</label>
+            <input id="${altId}" type="text" data-img-alt-input placeholder="What the image shows" />
+          </div>
+          <button type="button" data-img-act="alt-save">Save</button>
+        </div>`;
+      root.appendChild(tools);
+
+      const altPanel = tools.querySelector<HTMLElement>('.rich-image-alt')!;
+      const altInput = tools.querySelector<HTMLInputElement>('[data-img-alt-input]')!;
+      const altToggle = tools.querySelector<HTMLButtonElement>('[data-img-act="alt"]')!;
+
+      let selected: HTMLImageElement | null = null;
+
+      /** Position in the document of the selected image's embed. */
+      const indexOfSelected = (): number => {
+        if (!selected) return -1;
+        // Quill.find maps a DOM node back to its blot; getIndex gives the
+        // blot's position in the document.
+        const blot = (Quill as unknown as { find(node: Node): unknown }).find(selected);
+        if (!blot) return -1;
+        return (quill as unknown as { getIndex(b: unknown): number }).getIndex(blot);
+      };
+
+      function hideTools() {
+        if (selected) selected.classList.remove('rich-image-selected');
+        selected = null;
+        tools.hidden = true;
+        altPanel.hidden = true;
+        altToggle.setAttribute('aria-expanded', 'false');
+      }
+
+      function showTools(img: HTMLImageElement) {
+        if (selected && selected !== img) selected.classList.remove('rich-image-selected');
+        selected = img;
+        img.classList.add('rich-image-selected');
+        tools.hidden = false;
+        altPanel.hidden = true;
+        altToggle.setAttribute('aria-expanded', 'false');
+        altInput.value = img.getAttribute('alt') ?? '';
+
+        // Reflect the current alignment of the image's line.
+        const index = indexOfSelected();
+        const align = index >= 0 ? ((quill.getFormat(index, 1) as { align?: string }).align ?? '') : '';
+        tools.querySelectorAll<HTMLButtonElement>('[data-img-align]').forEach((b) => {
+          b.setAttribute('aria-pressed', String((b.dataset.imgAlign ?? '') === align));
+        });
+
+        // Sit just above the image, clamped inside the editor box.
+        const imgBox = img.getBoundingClientRect();
+        const rootBox = root.getBoundingClientRect();
+        const top = imgBox.top - rootBox.top - tools.offsetHeight - 8;
+        tools.style.top = `${Math.max(4, top)}px`;
+        tools.style.left = `${Math.max(4, imgBox.left - rootBox.left)}px`;
+      }
+
+      quill.root.addEventListener('click', (event) => {
+        const target = event.target as HTMLElement;
+        if (target.tagName === 'IMG') showTools(target as HTMLImageElement);
+        else hideTools();
+      });
+
+      // Any click outside the editor and its toolbar dismisses the tools.
+      document.addEventListener('click', (event) => {
+        const target = event.target as Node;
+        if (!tools.hidden && !tools.contains(target) && !quill.root.contains(target)) hideTools();
+      });
+      // Typing or scrolling would leave the toolbar stranded beside the image.
+      quill.on('text-change', (_d, _o, source) => {
+        if (source === 'user' && selected && !quill.root.contains(selected)) hideTools();
+      });
+      window.addEventListener('scroll', () => selected && showTools(selected), { passive: true });
+
+      tools.addEventListener('click', async (event) => {
+        const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+        if (!button || !selected) return;
+
+        const align = button.dataset.imgAlign;
+        if (align !== undefined) {
+          const index = indexOfSelected();
+          if (index >= 0) {
+            // Alignment belongs to the line holding the image.
+            quill.formatLine(index, 1, 'align', align || false, 'user');
+            showTools(selected);
+          }
+          return;
+        }
+
+        switch (button.dataset.imgAct) {
+          case 'replace': {
+            const file = await pickImage();
+            if (!file || !selected) return;
+            const url = await uploadImage(file);
+            if (!url || !selected) return;
+            const index = indexOfSelected();
+            if (index < 0) return;
+            const alt = selected.getAttribute('alt') ?? '';
+            // Swap through the document model, not the DOM, or the delta and
+            // the submitted HTML would drift apart.
+            quill.deleteText(index, 1, 'user');
+            quill.insertEmbed(index, 'image', url, 'user');
+            if (alt) quill.formatText(index, 1, 'alt', alt, 'user');
+            hideTools();
+            break;
+          }
+          case 'alt': {
+            const open = altPanel.hidden;
+            altPanel.hidden = !open;
+            altToggle.setAttribute('aria-expanded', String(open));
+            if (open) altInput.focus();
+            break;
+          }
+          case 'alt-save': {
+            const index = indexOfSelected();
+            if (index >= 0) {
+              const value = altInput.value.trim();
+              // Empty alt is meaningful: it marks the image as decorative.
+              quill.formatText(index, 1, 'alt', value || '', 'user');
+              if (selected) selected.setAttribute('alt', value);
+            }
+            altPanel.hidden = true;
+            altToggle.setAttribute('aria-expanded', 'false');
+            break;
+          }
+          case 'remove': {
+            const index = indexOfSelected();
+            if (index >= 0) quill.deleteText(index, 1, 'user');
+            hideTools();
+            break;
+          }
+        }
+      });
+
+      altInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          tools.querySelector<HTMLButtonElement>('[data-img-act="alt-save"]')?.click();
+        }
       });
 
       // Seed the editor with the stored HTML and keep the textarea in sync
