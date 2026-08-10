@@ -1,6 +1,8 @@
 ---
 import { Icon } from 'astro-icon/components';
 import Logo from '~/components/Logo.astro';
+import LocationMap from '~/components/common/LocationMap.astro';
+import { business } from '~/config/business';
 import { getHomePermalink } from '~/utils/permalinks';
 
 interface Link {
@@ -32,6 +34,10 @@ const {
   footNote = '',
   theme = 'light',
 } = Astro.props;
+
+// Opt-in per client (src/config/business.ts). With the map on, the brand and
+// link columns give up width to it; without it the original 5/7 split stands.
+const showMap = business.showFooterMap === true;
 ---
 
 <footer class:list={[{ dark: theme === 'dark' }, 'relative border-t border-gray-200 dark:border-slate-800 not-prose']}>
@@ -41,7 +47,7 @@ const {
   >
     <div class="grid grid-cols-1 gap-8 gap-y-10 py-12 md:py-16 lg:grid-cols-12">
       <!-- Brand column: logo, supporting description, legal links -->
-      <div class="lg:col-span-5">
+      <div class:list={[showMap ? 'lg:col-span-4' : 'lg:col-span-5']}>
         <a class="inline-flex items-center" href={getHomePermalink()} aria-label="Home">
           <Logo onDark={theme === 'dark'} class="w-48" />
         </a>
@@ -67,7 +73,12 @@ const {
       <!-- Link columns, evenly spread across the remaining width -->
       {
         links.length > 0 && (
-          <div class="grid grid-cols-1 gap-8 gap-y-10 sm:grid-cols-2 lg:col-span-7 lg:grid-cols-none lg:grid-flow-col lg:auto-cols-fr">
+          <div
+            class:list={[
+              'grid grid-cols-1 gap-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-none lg:grid-flow-col lg:auto-cols-fr',
+              showMap ? 'lg:col-span-5' : 'lg:col-span-7',
+            ]}
+          >
             {links.map(({ title, links: groupLinks }) => (
               <div>
                 <div class="mb-4 font-heading font-semibold dark:text-gray-300">{title}</div>
@@ -99,6 +110,9 @@ const {
           </div>
         )
       }
+
+      <!-- Map column, built from business.address -->
+      {showMap && <LocationMap class="lg:col-span-3" />}
     </div>
 
     <!-- Bottom bar: footnote left, social icons right -->

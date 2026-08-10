@@ -35,6 +35,12 @@ export interface BusinessConfig {
   };
   /** Absolute URL or root-relative path to a representative image */
   image: string;
+  /**
+   * Show a "Where to find us" map column in the footer, built from `address`.
+   * Off unless set: it embeds a third-party Google Maps frame, which is only
+   * worth the extra request for a client with a real address to visit.
+   */
+  showFooterMap?: boolean;
   description?: string;
   /** e.g. ["Mo-Fr 09:00-17:00", "Sa 09:00-13:00"] */
   openingHours?: string[];
@@ -71,6 +77,7 @@ export const business: BusinessConfig = {
     country: 'IE',
   },
   image: 'https://changingireland.ie/wp-content/uploads/2026/07/ci-logo.webp',
+  showFooterMap: true,
   description:
     'Changing Ireland is the independent national magazine for community development and social inclusion, published from Moyross, Limerick since 2001.',
   openingHours: ['Mo-Fr 09:00-17:00'],

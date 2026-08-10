@@ -1,0 +1,60 @@
+---
+/**
+ * "Where to find us" map, built from `business.address` so it needs no
+ * per-client editing beyond that config.
+ *
+ * The Google embed URL used here takes a plain address query and needs no API
+ * key or billing account. The frame is lazy-loaded: it sits below the fold
+ * everywhere it's used, so the third-party request only happens for visitors
+ * who actually scroll to it.
+ */
+import { Icon } from 'astro-icon/components';
+import { business } from '~/config/business';
+
+export interface Props {
+  /** Heading above the map. */
+  title?: string;
+  /** Map zoom level — 15 shows the surrounding streets. */
+  zoom?: number;
+  class?: string;
+}
+
+const { title = 'Where to find us', zoom = 15, class: className = '' } = Astro.props;
+
+const { street, locality, region, postalCode } = business.address;
+// Region is dropped when it just repeats the locality ("Limerick" /
+// "Co. Limerick"), which would otherwise confuse the geocoder.
+const parts = [street, locality, region?.replace(/^Co\.?\s*/i, '') === locality ? '' : region, postalCode, 'Ireland'];
+const address = parts.filter(Boolean).join(', ');
+const query = encodeURIComponent(address);
+
+const embedSrc = `https://maps.google.com/maps?q=${query}&z=${zoom}&hl=en&output=embed`;
+const mapsHref = `https://www.google.com/maps/search/?api=1&query=${query}`;
+---
+
+<div class={className}>
+  <div class="mb-4 font-heading font-semibold dark:text-gray-300">{title}</div>
+
+  <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-800">
+    <iframe
+      src={embedSrc}
+      title={`Map showing ${business.name} at ${address}`}
+      class="block w-full h-56 border-0"
+      loading="lazy"
+      referrerpolicy="no-referrer-when-downgrade"></iframe>
+  </div>
+
+  {
+    /* A real link as well as the frame: it works with the keyboard, gives
+      directions on mobile, and stands in if the embed is ever blocked. */
+  }
+  <a
+    href={mapsHref}
+    target="_blank"
+    rel="noopener"
+    class="mt-3 inline-flex items-center gap-2.5 text-sm text-muted hover:text-gray-700 hover:underline dark:text-gray-400 transition duration-150 ease-in-out"
+  >
+    <Icon name="tabler:map-2" class="w-5 h-5 shrink-0" aria-hidden="true" />
+    Get directions
+  </a>
+</div>

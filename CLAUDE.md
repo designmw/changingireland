@@ -112,6 +112,7 @@ The default footer structure is a standing standard for every build — keep it 
 
 - **Brand column (left)**: logo, short business description, then Terms · Privacy Policy links.
 - **Icon-led link columns (right, evenly spread)**: an "Explore" nav column and a "Get in touch" column (phone, WhatsApp, email, locality) — contact details are sourced from `src/config/business.ts` and update automatically per client.
+- **Optional map column**: set `showFooterMap: true` in `src/config/business.ts` to add a "Where to find us" column (`LocationMap.astro`), built from `business.address` — no API key, lazy-loaded, with a "Get directions" link. Leave it off for clients without a place to visit; the brand/link columns widen back automatically.
 - **Bottom bar**: footnote left ("<Business Name>. All rights reserved. Website by Design My Website" followed by a small Irish tricolour), social icons right. The flag is inline SVG in `src/navigation.ts`, not the 🇮🇪 emoji — Windows ships no flag glyphs and would render the letters "IE" instead. Keep the credit and the flag together on every build.
 - Every link in the footer columns carries a tabler icon. Per-client changes go in `src/navigation.ts` and `src/config/business.ts` — do not restructure `Footer.astro`.
 
