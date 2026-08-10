@@ -26,3 +26,10 @@ export async function setSetting(db: D1Database, key: string, value: unknown): P
 
 /** Category slugs whose blocks appear on the homepage, in display order. */
 export const HOMEPAGE_CATEGORIES_KEY = 'homepage_categories';
+
+/**
+ * Master switch for the homepage ad slots, toggled from /admin/ads. Off hides
+ * every slot without touching the individual ads' active flags, so turning it
+ * back on restores exactly what was showing before. Absent means on.
+ */
+export const HOMEPAGE_ADS_KEY = 'homepage_ads_enabled';

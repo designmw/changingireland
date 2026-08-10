@@ -9,6 +9,7 @@ import { Icon } from 'astro-icon/components';
 import { isAdmin, adminRedirect } from '~/lib/admin';
 import { getDb } from '~/lib/auth';
 import { getAllAds, deleteAd, getAdById, updateAd, type AdRow } from '~/lib/ads';
+import { getSetting, setSetting, HOMEPAGE_ADS_KEY } from '~/lib/settings';
 
 if (!(await isAdmin(Astro))) return Astro.redirect(adminRedirect(Astro));
 
@@ -23,6 +24,11 @@ if (Astro.request.method === 'POST' && db) {
   if (action === 'delete' && id) {
     await deleteAd(db, id);
     return Astro.redirect('/admin/ads?deleted=1');
+  }
+  if (action === 'toggle-section') {
+    // Master switch: individual ads keep their own active flags.
+    await setSetting(db, HOMEPAGE_ADS_KEY, form.get('enabled') === '1');
+    return Astro.redirect('/admin/ads?section=1');
   }
   if (action === 'toggle' && id) {
     const ad = await getAdById(db, id);
@@ -39,10 +45,14 @@ if (Astro.request.method === 'POST' && db) {
   }
 }
 
+const ads: AdRow[] = db ? await getAllAds(db) : [];
+const adsEnabled = db ? await getSetting(db, HOMEPAGE_ADS_KEY, true) : true;
+
 if (Astro.url.searchParams.has('deleted')) notice = 'Ad deleted.';
 if (Astro.url.searchParams.has('saved')) notice = 'Ad saved.';
-
-const ads: AdRow[] = db ? await getAllAds(db) : [];
+if (Astro.url.searchParams.has('section')) {
+  notice = adsEnabled ? 'Ads are now showing on the homepage.' : 'Ads are now hidden from the homepage.';
+}
 
 const metadata = { title: 'Ads — Admin', robots: { index: false, follow: false } };
 ---
@@ -50,6 +60,37 @@ const metadata = { title: 'Ads — Admin', robots: { index: false, follow: false
 <Layout metadata={metadata}>
   <AdminShell title="Ads" current="ads">
     {notice && <AdminToast message={notice} />}
+
+    {/* Master switch — hides both homepage slots without changing any ad's
+        own on/off state, so switching back on restores what was showing. */}
+    <div class="rounded-2xl bg-white shadow-md border border-gray-100 p-5 mb-6 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-start gap-3">
+        <Icon
+          name={adsEnabled ? 'tabler:eye' : 'tabler:eye-off'}
+          class={`h-6 w-6 shrink-0 mt-0.5 ${adsEnabled ? 'text-primary' : 'text-muted'}`}
+        />
+        <div>
+          <p class="font-semibold text-default">
+            Ads on the homepage are {adsEnabled ? 'switched on' : 'switched off'}
+          </p>
+          <p class="text-sm text-muted mt-0.5">
+            {
+              adsEnabled
+                ? 'Every ad marked Active below is showing in the homepage ad slots.'
+                : 'No ad slots appear on the homepage. Each ad keeps its own setting, so switching back on restores them.'
+            }
+          </p>
+        </div>
+      </div>
+      <form method="post" class="shrink-0">
+        <input type="hidden" name="action" value="toggle-section" />
+        <input type="hidden" name="enabled" value={adsEnabled ? '0' : '1'} />
+        <button type="submit" class={adsEnabled ? 'btn-secondary' : 'btn-primary'}>
+          <Icon name={adsEnabled ? 'tabler:eye-off' : 'tabler:eye'} class="h-5 w-5 mr-1.5" />
+          {adsEnabled ? 'Hide ads on homepage' : 'Show ads on homepage'}
+        </button>
+      </form>
+    </div>
 
     <div class="flex items-center justify-between mb-5">
       <p class="text-muted text-sm">

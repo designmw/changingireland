@@ -17,7 +17,7 @@ import {
   type PostRow,
 } from '~/lib/posts';
 import { getActiveAds, type AdRow } from '~/lib/ads';
-import { getSetting, HOMEPAGE_CATEGORIES_KEY } from '~/lib/settings';
+import { getSetting, HOMEPAGE_ADS_KEY, HOMEPAGE_CATEGORIES_KEY } from '~/lib/settings';
 import { rowToPost } from '~/lib/post-adapter';
 
 // Magazine front page, structured like the WordPress homepage: a dense
@@ -38,7 +38,9 @@ if (db) {
   const heroIds = new Set(hero.map((p) => p.id));
   more = latest.filter((p) => !heroIds.has(p.id)).slice(0, 8);
 
-  ads = await getActiveAds(db, 2);
+  // The master switch in /admin/ads hides both slots at once; individual ads
+  // keep their own active flags for when it's switched back on.
+  if (await getSetting(db, HOMEPAGE_ADS_KEY, true)) ads = await getActiveAds(db, 2);
 
   const allCats = await getTaxonomyCounts(db, 'categories');
   const chosen: string[] = await getSetting(db, HOMEPAGE_CATEGORIES_KEY, []);
