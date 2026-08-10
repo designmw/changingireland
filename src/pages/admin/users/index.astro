@@ -109,16 +109,26 @@ if (Astro.request.method === 'POST' && db) {
 
 if (Astro.url.searchParams.has('deleted')) notice = 'Contributor removed.';
 if (Astro.url.searchParams.has('saved')) notice = 'Role updated.';
+if (Astro.url.searchParams.has('updated')) notice = 'Contributor updated.';
 if (Astro.url.searchParams.has('added')) notice = 'Contributor added — share their username and password with them.';
 if (Astro.url.searchParams.has('password')) notice = 'Password set — share it with the contributor.';
 
-const users: UserRow[] = db
+// The imported WordPress accounts make this list long, so it's searchable by
+// name, username, or email.
+const q = (Astro.url.searchParams.get('q') ?? '').trim();
+
+let users: UserRow[] = db
   ? ((
       await db
         .prepare('SELECT id, username, email, first_name, last_name, role, created_at FROM users ORDER BY created_at')
         .all<UserRow>()
     ).results ?? [])
   : [];
+const totalUsers = users.length;
+if (q) {
+  const needle = q.toLowerCase();
+  users = users.filter((u) => `${u.first_name} ${u.last_name} ${u.username} ${u.email}`.toLowerCase().includes(needle));
+}
 
 const currentUserId = Astro.locals.user?.id ?? -1;
 
@@ -141,186 +151,223 @@ const metadata = { title: 'Contributors — Admin', robots: { index: false, foll
     }
 
     <div class="grid gap-6 lg:grid-cols-3 items-start">
-      <div class="lg:col-span-2 rounded-2xl bg-white shadow-md border border-gray-100 overflow-hidden">
-        {
-          users.length === 0 ? (
-            <div class="p-10 text-center">
-              <Icon name="tabler:users" class="h-10 w-10 mx-auto text-muted mb-3" />
-              <p class="text-muted">
-                No accounts yet. Add the first contributor with the form — give the first account the Admin role.
-              </p>
-            </div>
-          ) : (
-            <div class="overflow-x-auto">
-              <table class="w-full text-left">
-                <thead class="bg-primary/5 text-xs uppercase tracking-wide text-muted">
-                  <tr>
-                    <th scope="col" class="px-5 py-3 font-semibold">
-                      Contributor
-                    </th>
-                    <th scope="col" class="px-5 py-3 font-semibold">
-                      Role
-                    </th>
-                    <th scope="col" class="px-5 py-3 font-semibold text-right">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  {users.map((u) => (
-                    <tr class="hover:bg-primary/[0.03]">
-                      <td class="px-5 py-4">
-                        <span class="font-semibold text-default">
-                          {u.first_name} {u.last_name}
-                        </span>
-                        {u.id === currentUserId && (
-                          <span class="ml-1.5 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-semibold">
-                            you
+      <div class="lg:col-span-2 space-y-4">
+        <form method="get" action="/admin/users" class="flex flex-wrap items-end gap-3">
+          <div class="flex-1 min-w-48">
+            <label for="user-search" class="block text-xs font-semibold text-default mb-1">Search contributors</label>
+            <input
+              id="user-search"
+              name="q"
+              type="search"
+              value={q}
+              placeholder="Name, username, or email…"
+              class="py-2 px-3.5 w-full rounded-xl border border-gray-300 bg-white text-sm text-default placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+            />
+          </div>
+          <button type="submit" class="btn-secondary text-sm py-2 px-4">Search</button>
+          {
+            q && (
+              <a href="/admin/users" class="text-sm font-semibold text-primary hover:underline py-2">
+                Clear
+              </a>
+            )
+          }
+          <p class="basis-full text-xs text-muted">
+            {q ? `${users.length} of ${totalUsers} contributors match “${q}”.` : `${totalUsers} contributors.`}
+          </p>
+        </form>
+
+        <div class="rounded-2xl bg-white shadow-md border border-gray-100 overflow-hidden">
+          {
+            users.length === 0 ? (
+              <div class="p-10 text-center">
+                <Icon name="tabler:users" class="h-10 w-10 mx-auto text-muted mb-3" />
+                <p class="text-muted">
+                  {q
+                    ? 'No contributors match your search.'
+                    : 'No accounts yet. Add the first contributor with the form — give the first account the Admin role.'}
+                </p>
+              </div>
+            ) : (
+              <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                  <thead class="bg-primary/5 text-xs uppercase tracking-wide text-muted">
+                    <tr>
+                      <th scope="col" class="px-5 py-3 font-semibold">
+                        Contributor
+                      </th>
+                      <th scope="col" class="px-5 py-3 font-semibold">
+                        Role
+                      </th>
+                      <th scope="col" class="px-5 py-3 font-semibold text-right">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-100">
+                    {users.map((u) => (
+                      <tr class="hover:bg-primary/[0.03]">
+                        <td class="px-5 py-4">
+                          <span class="font-semibold text-default">
+                            {u.first_name} {u.last_name}
                           </span>
-                        )}
-                        <span class="block text-xs text-muted mt-0.5">
-                          {u.username} · {u.email}
-                        </span>
-                      </td>
-                      <td class="px-5 py-4">
-                        {u.id === currentUserId ? (
-                          <span class="text-sm font-semibold capitalize">{u.role}</span>
-                        ) : (
-                          <form method="post" class="flex items-center gap-2">
-                            <input type="hidden" name="action" value="role" />
-                            <input type="hidden" name="id" value={u.id} />
-                            <label class="sr-only" for={`role-${u.id}`}>
-                              Role for {u.username}
-                            </label>
-                            <select
-                              id={`role-${u.id}`}
-                              name="role"
-                              class="py-1.5 px-2.5 rounded-lg border border-gray-300 bg-white text-sm"
-                            >
-                              <option value="editor" selected={u.role === 'editor'}>
-                                Editor
-                              </option>
-                              <option value="admin" selected={u.role === 'admin'}>
-                                Admin
-                              </option>
-                            </select>
-                            <button
-                              type="submit"
-                              class="text-sm font-semibold text-primary hover:underline cursor-pointer"
-                            >
-                              Save
-                            </button>
-                          </form>
-                        )}
-                      </td>
-                      <td class="px-5 py-4">
-                        <div class="flex items-center justify-end gap-3">
-                          <details class="relative">
-                            <summary class="text-sm font-semibold text-primary hover:underline cursor-pointer list-none">
-                              Set password<span class="sr-only"> for {u.username}</span>
-                            </summary>
-                            <form
-                              method="post"
-                              class="absolute right-0 z-10 mt-2 w-64 rounded-xl bg-white shadow-xl ring-1 ring-black/10 p-4 space-y-3"
-                            >
-                              <input type="hidden" name="action" value="password" />
+                          {u.id === currentUserId && (
+                            <span class="ml-1.5 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-semibold">
+                              you
+                            </span>
+                          )}
+                          <span class="block text-xs text-muted mt-0.5">
+                            {u.username} · {u.email}
+                          </span>
+                        </td>
+                        <td class="px-5 py-4">
+                          {u.id === currentUserId ? (
+                            <span class="text-sm font-semibold capitalize">{u.role}</span>
+                          ) : (
+                            <form method="post" class="flex items-center gap-2">
+                              <input type="hidden" name="action" value="role" />
                               <input type="hidden" name="id" value={u.id} />
-                              <label for={`pw-${u.id}`} class="block text-xs font-semibold text-default">
-                                New password for {u.username}
+                              <label class="sr-only" for={`role-${u.id}`}>
+                                Role for {u.username}
                               </label>
-                              <input
-                                id={`pw-${u.id}`}
-                                name="password"
-                                type="password"
-                                minlength="8"
-                                required
-                                autocomplete="new-password"
-                                class="py-2 px-3 block w-full rounded-lg border border-gray-300 bg-white text-sm"
-                              />
-                              <button type="submit" class="btn-primary w-full py-2 text-sm">
-                                Save password
-                              </button>
-                            </form>
-                          </details>
-                          {u.id !== currentUserId && (
-                            <form method="post" data-confirm={u.username}>
-                              <input type="hidden" name="action" value="delete" />
-                              <input type="hidden" name="id" value={u.id} />
+                              <select
+                                id={`role-${u.id}`}
+                                name="role"
+                                class="py-1.5 px-2.5 rounded-lg border border-gray-300 bg-white text-sm"
+                              >
+                                <option value="editor" selected={u.role === 'editor'}>
+                                  Editor
+                                </option>
+                                <option value="admin" selected={u.role === 'admin'}>
+                                  Admin
+                                </option>
+                              </select>
                               <button
                                 type="submit"
-                                class="text-sm font-semibold text-red-700 hover:underline cursor-pointer"
+                                class="text-sm font-semibold text-primary hover:underline cursor-pointer"
                               >
-                                Remove<span class="sr-only"> {u.username}</span>
+                                Save
                               </button>
                             </form>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-        }
-      </div>
+                        </td>
+                        <td class="px-5 py-4">
+                          <div class="flex items-center justify-end gap-3">
+                            <a
+                              href={`/admin/users/edit?id=${u.id}`}
+                              class="text-sm font-semibold text-primary hover:underline"
+                            >
+                              Edit<span class="sr-only"> {u.username}</span>
+                            </a>
+                            <details class="relative">
+                              <summary class="text-sm font-semibold text-primary hover:underline cursor-pointer list-none">
+                                Set password<span class="sr-only"> for {u.username}</span>
+                              </summary>
+                              <form
+                                method="post"
+                                class="absolute right-0 z-10 mt-2 w-64 rounded-xl bg-white shadow-xl ring-1 ring-black/10 p-4 space-y-3"
+                              >
+                                <input type="hidden" name="action" value="password" />
+                                <input type="hidden" name="id" value={u.id} />
+                                <label for={`pw-${u.id}`} class="block text-xs font-semibold text-default">
+                                  New password for {u.username}
+                                </label>
+                                <input
+                                  id={`pw-${u.id}`}
+                                  name="password"
+                                  type="password"
+                                  minlength="8"
+                                  required
+                                  autocomplete="new-password"
+                                  class="py-2 px-3 block w-full rounded-lg border border-gray-300 bg-white text-sm"
+                                />
+                                <button type="submit" class="btn-primary w-full py-2 text-sm">
+                                  Save password
+                                </button>
+                              </form>
+                            </details>
+                            {u.id !== currentUserId && (
+                              <form method="post" data-confirm={u.username}>
+                                <input type="hidden" name="action" value="delete" />
+                                <input type="hidden" name="id" value={u.id} />
+                                <button
+                                  type="submit"
+                                  class="text-sm font-semibold text-red-700 hover:underline cursor-pointer"
+                                >
+                                  Remove<span class="sr-only"> {u.username}</span>
+                                </button>
+                              </form>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          }
+        </div>
 
-      <form method="post" class="rounded-2xl bg-white shadow-md border border-gray-100 p-6 space-y-4">
-        <input type="hidden" name="action" value="add" />
-        <h2 class="font-heading font-bold text-lg text-heading">Add a contributor</h2>
-        <div class="grid gap-4 sm:grid-cols-2">
+        <form method="post" class="rounded-2xl bg-white shadow-md border border-gray-100 p-6 space-y-4">
+          <input type="hidden" name="action" value="add" />
+          <h2 class="font-heading font-bold text-lg text-heading">Add a contributor</h2>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label for="first_name" class={labelClass}>First name</label>
+              <input
+                id="first_name"
+                name="first_name"
+                type="text"
+                value={addForm.first_name}
+                required
+                class={inputClass}
+              />
+            </div>
+            <div>
+              <label for="last_name" class={labelClass}>Last name</label>
+              <input id="last_name" name="last_name" type="text" value={addForm.last_name} class={inputClass} />
+            </div>
+          </div>
           <div>
-            <label for="first_name" class={labelClass}>First name</label>
+            <label for="username" class={labelClass}>Username</label>
+            <input id="username" name="username" type="text" value={addForm.username} required class={inputClass} />
+          </div>
+          <div>
+            <label for="email" class={labelClass}>Email</label>
+            <input id="email" name="email" type="email" value={addForm.email} required class={inputClass} />
+          </div>
+          <div>
+            <label for="password" class={labelClass}>Password</label>
             <input
-              id="first_name"
-              name="first_name"
-              type="text"
-              value={addForm.first_name}
+              id="password"
+              name="password"
+              type="password"
+              minlength="8"
               required
               class={inputClass}
+              autocomplete="new-password"
             />
+            <p class="mt-1.5 text-xs text-muted">
+              At least 8 characters. Share it with the contributor; they log in at /login.
+            </p>
           </div>
           <div>
-            <label for="last_name" class={labelClass}>Last name</label>
-            <input id="last_name" name="last_name" type="text" value={addForm.last_name} class={inputClass} />
+            <label for="new-role" class={labelClass}>Role</label>
+            <select id="new-role" name="role" class={inputClass}>
+              <option value="editor" selected={addForm.role === 'editor'}>Editor — writes and publishes articles</option
+              >
+              <option value="admin" selected={addForm.role === 'admin'}>Admin — full access, including this page</option
+              >
+            </select>
           </div>
-        </div>
-        <div>
-          <label for="username" class={labelClass}>Username</label>
-          <input id="username" name="username" type="text" value={addForm.username} required class={inputClass} />
-        </div>
-        <div>
-          <label for="email" class={labelClass}>Email</label>
-          <input id="email" name="email" type="email" value={addForm.email} required class={inputClass} />
-        </div>
-        <div>
-          <label for="password" class={labelClass}>Password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            minlength="8"
-            required
-            class={inputClass}
-            autocomplete="new-password"
-          />
-          <p class="mt-1.5 text-xs text-muted">
-            At least 8 characters. Share it with the contributor; they log in at /login.
-          </p>
-        </div>
-        <div>
-          <label for="new-role" class={labelClass}>Role</label>
-          <select id="new-role" name="role" class={inputClass}>
-            <option value="editor" selected={addForm.role === 'editor'}>Editor — writes and publishes articles</option>
-            <option value="admin" selected={addForm.role === 'admin'}>Admin — full access, including this page</option>
-          </select>
-        </div>
-        <button type="submit" class="btn-primary w-full">
-          <Icon name="tabler:user-plus" class="h-5 w-5 mr-1.5" /> Add contributor
-        </button>
-      </form>
+          <button type="submit" class="btn-primary w-full">
+            <Icon name="tabler:user-plus" class="h-5 w-5 mr-1.5" /> Add contributor
+          </button>
+        </form>
+      </div>
     </div>
-  </AdminShell>
 
-  <AdminConfirmDelete />
+    <AdminConfirmDelete />
+  </AdminShell>
 </Layout>
