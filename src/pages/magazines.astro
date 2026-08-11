@@ -21,10 +21,13 @@ const subtitleOf = (title: string) => (title.includes(':') ? title.split(':').sl
 // edited in the admin rich-text editor arrive as HTML and pass through.
 const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+// Rich-text editors (and pasted-in text) litter the HTML with non-breaking
+// spaces, which stop long lines wrapping and push them off the page.
+const unglue = (s: string) => s.replace(/&nbsp;|\u00a0/g, ' ');
 const formatDescription = (text: string) =>
   /<\w+[^>]*>/.test(text)
-    ? text
-    : text
+    ? unglue(text)
+    : unglue(text)
         .split('\n')
         .map((line) => escapeHtml(line.trim()))
         .filter(Boolean)
@@ -123,9 +126,11 @@ const metadata = {
                     </a>
                   </h2>
                   {subtitleOf(m.title) && <p class="font-semibold text-default mb-2">{subtitleOf(m.title)}</p>}
+                  {/* A div, not a p: rich-text descriptions are made of <p>
+                      blocks, which a browser would break out of a parent <p>. */}
                   {m.description && (
-                    <p
-                      class="text-sm text-muted leading-relaxed [&_strong]:text-default [&_strong]:font-bold"
+                    <div
+                      class="text-sm text-muted leading-relaxed break-words [&_strong]:text-default [&_strong]:font-bold"
                       set:html={formatDescription(m.description)}
                     />
                   )}

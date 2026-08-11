@@ -453,7 +453,10 @@ const editorId = `rich-${name}`;
         quill.setContents(delta, 'silent');
       }
       const sync = () => {
-        const html = quill.getSemanticHTML();
+        // Quill's getSemanticHTML() escapes every space as &nbsp;. Saved as-is,
+        // each paragraph becomes one unbreakable string and runs off the page
+        // when it renders, so put ordinary spaces back.
+        const html = quill.getSemanticHTML().replace(/&nbsp;|\u00a0/g, ' ');
         source.value = html === '<p></p>' ? '' : html;
       };
       quill.on('text-change', sync);
