@@ -63,9 +63,11 @@ export interface BusinessConfig {
 export const business: BusinessConfig = {
   name: 'Changing Ireland',
   legalName: 'Changing Ireland Community Media CLG',
-  // A magazine/publisher, not a shopfront — Organization-ish; LocalBusiness
-  // is the safe schema fallback the components support.
-  type: 'LocalBusiness',
+  // A magazine/publisher, not a shopfront. This site renders
+  // NewsMediaOrganizationSchema rather than LocalBusinessSchema, so this value
+  // is the type it declares — LocalBusiness would have advertised opening hours
+  // and a price range for something you can't visit or buy.
+  type: 'NewsMediaOrganization',
   url: 'https://changingireland.ie',
   telephone: '+353 61 326057',
   email: 'editor@changingireland.ie',
@@ -76,7 +78,10 @@ export const business: BusinessConfig = {
     postalCode: 'V94 V0NP',
     country: 'IE',
   },
-  image: 'https://changingireland.ie/wp-content/uploads/2026/07/ci-logo.webp',
+  // Served straight from public/ so the URL is stable and has no build hash.
+  // This used to point at /wp-content/…, which stops resolving the moment DNS
+  // moves off WordPress — taking the schema logo with it.
+  image: 'https://changingireland.ie/ci-logo.webp',
   showFooterMap: true,
   description:
     'Changing Ireland is the independent national magazine for community development and social inclusion, published from Moyross, Limerick since 2001.',

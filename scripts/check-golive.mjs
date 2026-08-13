@@ -32,10 +32,14 @@ if (!cfg) {
     err('config.yaml still references example.com.', "Set site.site to the client's real https:// domain.");
   if (/\bname:\s*dmw-astro-base/.test(cfg))
     err('config.yaml site.name is still "dmw-astro-base".', "Set site.name to the client's business name.");
-  if (/robots:\s*[\s\S]*?index:\s*false/.test(cfg) || /index:\s*false/.test(cfg))
+  // A `false` marked `# intentional: <reason>` is a deliberate SEO decision
+  // (e.g. thin tag archives kept out of the index), not a forgotten flag.
+  const cfgRobots = cfg.replace(/^.*index:\s*false\s*#\s*intentional:.*$/gm, '');
+  if (/robots:\s*[\s\S]*?index:\s*false/.test(cfgRobots) || /index:\s*false/.test(cfgRobots))
     err(
       'config.yaml still has robots index: false somewhere (site or blog).',
-      'Set every robots.index and robots.follow to true so Google can index the site.'
+      'Set every robots.index and robots.follow to true so Google can index the site. ' +
+        'If a section is deliberately out of the index, mark it `index: false # intentional: <reason>`.'
     );
   if (/id:\s*['"]?G-TEST12345/.test(cfg))
     err(

@@ -47,9 +47,45 @@ export async function toWebp(file: File): Promise<File> {
 }
 
 /**
+ * Measure an image file's intrinsic size. Returns null if it can't be decoded,
+ * so a caller can fall back rather than record a wrong box.
+ */
+async function measure(file: File): Promise<{ width: number; height: number } | null> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const size = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    return size;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write the final (post-conversion) dimensions of `input`'s file into the
+ * hidden `<name>_width` / `<name>_height` fields, if the form has them.
+ *
+ * Workers can't decode images, so the browser is the only place these can be
+ * measured — and they have to be taken after the WebP re-encode, which
+ * downscales anything wider than MAX_WIDTH.
+ */
+async function recordDimensions(form: HTMLFormElement, name: string, file: File): Promise<void> {
+  const widthField = form.elements.namedItem(`${name}_width`);
+  const heightField = form.elements.namedItem(`${name}_height`);
+  if (!(widthField instanceof HTMLInputElement) || !(heightField instanceof HTMLInputElement)) return;
+  const size = await measure(file);
+  if (!size) return;
+  widthField.value = String(size.width);
+  heightField.value = String(size.height);
+}
+
+/**
  * Make a multipart form compress its file inputs before submitting: intercepts
  * submit, converts the named inputs' files to WebP, swaps them in via
  * DataTransfer, then resubmits. No-ops when nothing needs converting.
+ *
+ * Also fills in `<name>_width`/`<name>_height` hidden fields when the form has
+ * them — see recordDimensions.
  */
 export function compressFormImages(form: HTMLFormElement, inputNames: string[]): void {
   // Guards the resubmit below: the second pass through this listener must fall
@@ -68,6 +104,9 @@ export function compressFormImages(form: HTMLFormElement, inputNames: string[]):
       pending.map(async (input) => {
         const file = input.files![0];
         const out = await toWebp(file);
+        // Measured on `out`, the bytes actually being uploaded — toWebp caps
+        // width at MAX_WIDTH, so the original file's size would be wrong.
+        await recordDimensions(form, input.name, out);
         if (out === file) return;
         // File inputs are read-only except via a DataTransfer's FileList.
         const dt = new DataTransfer();

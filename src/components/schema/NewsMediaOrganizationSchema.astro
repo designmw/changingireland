@@ -1,0 +1,47 @@
+---
+/**
+ * Publisher identity for the whole site.
+ *
+ * Changing Ireland is a national magazine, not a shopfront, so
+ * `NewsMediaOrganization` is the honest schema type — `LocalBusiness` (what
+ * business.ts falls back to) describes a place you visit for a service and
+ * carries opening hours and price range, neither of which means anything for a
+ * publisher. This is what `NewsArticle.publisher` on every article points back
+ * to, so the two must agree on name and logo.
+ */
+import { business } from '~/config/business';
+
+export interface Props {
+  /** Absolute URL to the publication logo (square or wide, ≥112px tall). */
+  logo?: string;
+}
+
+const { logo = business.image } = Astro.props;
+
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'NewsMediaOrganization',
+  '@id': `${business.url}#organization`,
+  name: business.name,
+  ...(business.legalName ? { legalName: business.legalName } : {}),
+  url: business.url,
+  logo: {
+    '@type': 'ImageObject',
+    url: logo,
+  },
+  ...(business.description ? { description: business.description } : {}),
+  ...(business.email ? { email: business.email } : {}),
+  ...(business.telephone ? { telephone: business.telephone } : {}),
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: business.address.street,
+    addressLocality: business.address.locality,
+    addressRegion: business.address.region,
+    postalCode: business.address.postalCode,
+    addressCountry: business.address.country,
+  },
+  ...(business.sameAs?.length ? { sameAs: business.sameAs } : {}),
+};
+---
+
+<script type="application/ld+json" set:html={JSON.stringify(schema)} />

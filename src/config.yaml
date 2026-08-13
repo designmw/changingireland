@@ -25,8 +25,8 @@ metadata:
     template: '%s — Changing Ireland'
   description: 'Changing Ireland is the national community development magazine: news, features and voices from communities all around Ireland, free to read.'
   robots:
-    index: false # CHANGE TO true BEFORE GO-LIVE
-    follow: false # CHANGE TO true BEFORE GO-LIVE
+    index: true
+    follow: true
   openGraph:
     site_name: Changing Ireland
     images:
@@ -50,25 +50,27 @@ apps:
       isEnabled: true
       permalink: '/%slug%' # Variables: %slug%, %year%, %month%, %day%, %hour%, %minute%, %second%, %category%
       robots:
-        index: false # CHANGE TO true BEFORE GO-LIVE
+        index: true
 
     list:
       isEnabled: true
       pathname: 'blog'
       robots:
-        index: false # CHANGE TO true BEFORE GO-LIVE
+        index: true
 
     category:
       isEnabled: true
       pathname: 'category'
       robots:
-        index: false # CHANGE TO true BEFORE GO-LIVE
+        index: true
 
     tag:
       isEnabled: true
       pathname: 'tag'
       robots:
-        index: false
+        # 1,761 tags, 1,144 of them on a single article — indexing them would
+        # bury the real pages under thin, near-duplicate archives.
+        index: false # intentional: thin tag archives stay out of the index
 
     isRelatedPostsEnabled: true
     relatedPostsCount: 4

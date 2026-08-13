@@ -24,6 +24,23 @@ export async function getDb(): Promise<D1Database | undefined> {
   return env?.DB;
 }
 
+/** A Cloudflare rate-limiting binding (see wrangler.jsonc). */
+export interface RateLimiter {
+  limit: (opts: { key: string }) => Promise<{ success: boolean }>;
+}
+
+/**
+ * Resolve a rate-limiting binding by name. Absent in local `astro dev`, where
+ * callers should treat a missing limiter as "allow" so the form still works.
+ */
+export async function getRateLimiter(name: string): Promise<RateLimiter | undefined> {
+  const spec = 'cloudflare:workers';
+  const cfMod = await import(/* @vite-ignore */ spec).catch(() => ({}) as Record<string, unknown>);
+  const env = (cfMod as { env?: Record<string, unknown> }).env;
+  const binding = env?.[name] as RateLimiter | undefined;
+  return typeof binding?.limit === 'function' ? binding : undefined;
+}
+
 /** The R2 bucket for magazine PDFs, covers, and post images. */
 export async function getUploads(): Promise<R2Bucket | undefined> {
   const spec = 'cloudflare:workers';
@@ -35,7 +52,17 @@ export async function getUploads(): Promise<R2Bucket | undefined> {
 const SESSION_COOKIE = 'ci_session';
 const NAME_COOKIE = 'ci_name';
 const SESSION_DAYS = 30;
-const PBKDF2_ITERATIONS = 100_000;
+/**
+ * OWASP's current floor for PBKDF2-HMAC-SHA256. Costs ~40ms of Worker CPU per
+ * login (measured; 100_000 was ~9ms), which is comfortable on Workers Paid but
+ * would blow the 10ms CPU limit on the Free plan — drop to 210_000 if this
+ * account is ever moved to Free.
+ *
+ * Raising this is safe at any time: the iteration count is stored inside each
+ * hash, so existing hashes keep verifying at whatever count they were made
+ * with, and `needsRehash` upgrades each account on its next successful login.
+ */
+const PBKDF2_ITERATIONS = 600_000;
 
 // ---------- password hashing (PBKDF2-SHA256, WebCrypto — Workers-compatible) ----------
 
@@ -58,6 +85,16 @@ export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const hash = await pbkdf2(password, salt, PBKDF2_ITERATIONS);
   return `pbkdf2$${PBKDF2_ITERATIONS}$${toHex(salt)}$${hash}`;
+}
+
+/**
+ * True when `stored` was hashed with fewer rounds than we now require, so the
+ * caller should re-hash the (already verified) plaintext and save it. Lets the
+ * cost factor move up without a forced password reset for everyone.
+ */
+export function needsRehash(stored: string): boolean {
+  const [scheme, iterStr] = stored.split('$');
+  return scheme !== 'pbkdf2' || Number(iterStr) < PBKDF2_ITERATIONS;
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {

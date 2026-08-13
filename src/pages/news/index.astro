@@ -8,6 +8,7 @@ import PageNav from '~/components/blog/PageNav.astro';
 import SearchForm from '~/components/blog/SearchForm.astro';
 
 import { blogListRobots } from '~/utils/blog';
+import { getCanonical } from '~/utils/permalinks';
 import { getDb } from '~/lib/auth';
 import { getPublishedPage, getTaxonomyCounts } from '~/lib/posts';
 import { rowToPost } from '~/lib/post-adapter';
@@ -24,6 +25,12 @@ const categories = db ? (await getTaxonomyCounts(db, 'categories')).slice(0, 12)
 const metadata = {
   title: `News${result.page > 1 ? ` — Page ${result.page}` : ''}`,
   description: 'All the latest community development, social inclusion and local news stories from Changing Ireland.',
+  // Self-referencing canonical, including ?page=N. The default canonical drops
+  // the query string, so every page of the archive claimed to be page 1 —
+  // conflicting with the noindex below and giving Google a reason not to walk
+  // deeper into the pagination. noindex + follow is the intent: don't index the
+  // archive page itself, do crawl through to the articles on it.
+  canonical: String(getCanonical(result.page > 1 ? `/news?page=${result.page}` : '/news')),
   robots: {
     index: blogListRobots?.index && result.page === 1,
     follow: blogListRobots?.follow,

@@ -35,6 +35,11 @@ if (Astro.request.method === 'POST' && db) {
   const active = fd.get('active') === 'on';
   const sortOrder = Number(fd.get('sort_order') ?? 0) || 0;
   const imageFile = fd.get('image');
+  // Measured in the browser before submit (see webp-client.ts) because the
+  // Worker has no image decoder. 0 when JavaScript is off or the image wasn't
+  // replaced — updateAd treats that as "keep what's stored".
+  const imageWidth = Math.max(0, Math.trunc(Number(fd.get('image_width') ?? 0)) || 0);
+  const imageHeight = Math.max(0, Math.trunc(Number(fd.get('image_height') ?? 0)) || 0);
 
   form = { label, link_url: linkUrl, image_key: form.image_key, active: active ? 1 : 0, sort_order: String(sortOrder) };
 
@@ -59,7 +64,7 @@ if (Astro.request.method === 'POST' && db) {
       await uploads.put(imageKey, imageFile.stream(), { httpMetadata: { contentType: type } });
     }
 
-    const payload = { label, imageKey, linkUrl, active, sortOrder };
+    const payload = { label, imageKey, linkUrl, active, sortOrder, imageWidth, imageHeight };
     if (id) await updateAd(db, id, payload);
     else await createAd(db, payload);
     return Astro.redirect('/admin/ads?saved=1');
@@ -131,7 +136,17 @@ const metadata = { title: id ? 'Edit ad — Admin' : 'New ad — Admin', robots:
             accept="image/png,image/jpeg,image/webp,image/gif"
             class="block w-full text-sm text-default file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:bg-primary file:text-white file:font-semibold file:cursor-pointer hover:file:opacity-90"
           />
-          <p class="mt-1.5 text-xs text-muted">Wide banner shapes work best on the homepage (e.g. 1200 × 200 px).</p>
+          {
+            /* The slot is 1216px wide at the largest breakpoint, so 2432px keeps
+              it sharp on retina screens. Filled in by the page script below. */
+          }
+          <input type="hidden" name="image_width" value="0" />
+          <input type="hidden" name="image_height" value="0" />
+          <p class="mt-1.5 text-xs text-muted">
+            Wide banner shapes work best on the homepage. The slot is 1216 px across on a desktop, so upload at
+            <strong>2432 × 400 px</strong> for a sharp banner. Very wide shapes get short on phones, so avoid anything thinner
+            than about 6:1.
+          </p>
         </div>
 
         <div class="grid gap-5 sm:grid-cols-2">

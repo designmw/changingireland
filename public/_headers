@@ -1,11 +1,17 @@
-# Cloudflare Pages headers — https://developers.cloudflare.com/pages/configuration/headers/
-# Security + cache headers applied at the edge (canonical source since the Vercel migration).
+# Cloudflare static-asset headers — https://developers.cloudflare.com/workers/static-assets/headers/
+#
+# IMPORTANT: this file only covers responses served by the ASSET layer (files
+# under dist/client: /_astro/*, favicons, robots.txt). Every HTML page on this
+# site is rendered by the Worker (`prerender = false`), and the asset layer
+# never sees those — so the same policy is set for real in src/middleware.ts.
+# Keep the two in step; this half is the backstop for static files.
 
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  Strict-Transport-Security: max-age=31536000
 
 /_astro/*
   Cache-Control: public, max-age=31536000, immutable

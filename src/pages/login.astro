@@ -2,7 +2,16 @@
 export const prerender = false;
 
 import Layout from '~/layouts/PageLayout.astro';
-import { getDb, verifyPassword, createSession, setSessionCookies, displayName } from '~/lib/auth';
+import {
+  getDb,
+  verifyPassword,
+  hashPassword,
+  needsRehash,
+  createSession,
+  setSessionCookies,
+  displayName,
+  getRateLimiter,
+} from '~/lib/auth';
 import type { User } from '~/lib/auth';
 
 // Login exists only for the editors who publish from /admin — there is no
@@ -12,6 +21,25 @@ const safeRedirect = redirectTo.startsWith('/') && !redirectTo.startsWith('//') 
 
 if (Astro.locals.user) return Astro.redirect(safeRedirect);
 
+/**
+ * Per-IP throttle on sign-in attempts. Without it the only thing standing
+ * between an attacker and an editor account is the password itself, and each
+ * guess is free. Checked *before* the password is verified, which also caps
+ * how much Worker CPU an attacker can burn (each verify is a deliberately slow
+ * 600k-round PBKDF2). No-op in local dev, where the binding doesn't exist.
+ */
+async function loginAttemptAllowed(request: Request): Promise<boolean> {
+  const limiter = await getRateLimiter('LOGIN_RATE_LIMIT');
+  if (!limiter) return true;
+  try {
+    const { success } = await limiter.limit({ key: request.headers.get('cf-connecting-ip') ?? 'unknown' });
+    return success;
+  } catch {
+    // A limiter failure must not lock the editors out of their own site.
+    return true;
+  }
+}
+
 let error = '';
 if (Astro.request.method === 'POST') {
   const db = await getDb();
@@ -20,6 +48,8 @@ if (Astro.request.method === 'POST') {
   const password = String(form.get('password') || '');
   if (!login || !password) {
     error = 'Please enter your username or email address and password.';
+  } else if (!(await loginAttemptAllowed(Astro.request))) {
+    error = 'Too many sign-in attempts. Please wait a minute and try again.';
   } else if (db) {
     const user = await db
       .prepare(
@@ -28,6 +58,18 @@ if (Astro.request.method === 'POST') {
       .bind(login, login)
       .first<User & { password_hash: string }>();
     if (user && (await verifyPassword(password, user.password_hash))) {
+      // Password is correct and we still have the plaintext: if the stored hash
+      // predates the current cost factor, quietly upgrade it.
+      if (needsRehash(user.password_hash)) {
+        try {
+          await db
+            .prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+            .bind(await hashPassword(password), user.id)
+            .run();
+        } catch {
+          // Never fail a valid login over an opportunistic upgrade.
+        }
+      }
       const sessionId = await createSession(db, user.id);
       setSessionCookies(Astro.cookies, sessionId, user.first_name || displayName(user));
       return Astro.redirect(safeRedirect);

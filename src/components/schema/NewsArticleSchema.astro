@@ -1,0 +1,89 @@
+---
+/**
+ * `NewsArticle` + `BreadcrumbList` for a single article.
+ *
+ * Article pages carried no structured data at all, which for a news publisher
+ * is the main thing standing between the archive and article rich results.
+ * Breadcrumbs ride along here rather than via Breadcrumbs.astro because the
+ * article layout (CiSinglePost) already has its own header design and doesn't
+ * want a second visible trail — this emits the markup only.
+ */
+import { business } from '~/config/business';
+
+export interface Props {
+  headline: string;
+  description?: string;
+  /** Canonical URL of the article. */
+  url: string;
+  /** Absolute URL of the lead image, if the article has one. */
+  image?: string;
+  author?: string;
+  /** ISO 8601, or D1's `YYYY-MM-DD HH:MM:SS` (converted below). */
+  datePublished?: string;
+  dateModified?: string;
+  /** Primary category, used for the breadcrumb trail. */
+  category?: { slug: string; title: string };
+}
+
+const { headline, description, url, image, author, datePublished, dateModified, category } = Astro.props;
+
+/** D1 writes `YYYY-MM-DD HH:MM:SS` (UTC); schema.org wants ISO 8601. */
+function toIso(value?: string): string | undefined {
+  if (!value) return undefined;
+  const iso = value.replace(' ', 'T');
+  const date = new Date(/[Z+]/.test(iso) ? iso : `${iso}Z`);
+  return isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+const published = toIso(datePublished);
+const modified = toIso(dateModified) ?? published;
+
+const article = {
+  '@context': 'https://schema.org',
+  '@type': 'NewsArticle',
+  headline: headline.slice(0, 110), // Google ignores headlines beyond ~110 chars
+  ...(description ? { description } : {}),
+  mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+  url,
+  ...(image ? { image: [image] } : {}),
+  ...(published ? { datePublished: published } : {}),
+  ...(modified ? { dateModified: modified } : {}),
+  // A bylined article gets a Person; otherwise the masthead is the author.
+  author: author
+    ? { '@type': 'Person', name: author }
+    : { '@type': 'Organization', name: business.name, url: business.url },
+  // Spelled out in full rather than left as a bare {"@id": …} reference. The
+  // NewsMediaOrganization node itself is only rendered on the homepage, and
+  // Google resolves @id references within a page, not across a site — a lone
+  // reference here reads as a publisher with no name or logo.
+  publisher: {
+    '@type': 'NewsMediaOrganization',
+    '@id': `${business.url}#organization`,
+    name: business.name,
+    url: business.url,
+    logo: { '@type': 'ImageObject', url: business.image },
+  },
+  ...(business.description ? { isAccessibleForFree: true } : {}),
+};
+
+const crumbs = [
+  { name: 'Home', item: business.url },
+  { name: 'News', item: `${business.url}/news` },
+  ...(category ? [{ name: category.title, item: `${business.url}/category/${category.slug}` }] : []),
+  { name: headline, item: url },
+];
+
+const breadcrumbs = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: crumbs.map((crumb, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    name: crumb.name,
+    item: crumb.item,
+  })),
+};
+---
+
+<script type="application/ld+json" set:html={JSON.stringify(article)} />
+<script type="application/ld+json" set:html={JSON.stringify(breadcrumbs)} />

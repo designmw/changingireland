@@ -9,7 +9,16 @@ import Grid from '~/components/blog/Grid.astro';
 import { getCanonical, getPermalink } from '~/utils/permalinks';
 import { blogPostRobots } from '~/utils/blog';
 import { getDb } from '~/lib/auth';
-import { getPostBySlug, getRelatedPosts, getPublishedPosts, isLive, parseTaxonomies, type PostRow } from '~/lib/posts';
+import NewsArticleSchema from '~/components/schema/NewsArticleSchema.astro';
+import {
+  getPostBySlug,
+  getRelatedPosts,
+  getPublishedPosts,
+  isLive,
+  metaDescription,
+  parseTaxonomies,
+  type PostRow,
+} from '~/lib/posts';
 import { rowToPost } from '~/lib/post-adapter';
 import { renderWpBody } from '~/lib/wp-page-render';
 import type { MetaData } from '~/types';
@@ -79,7 +88,10 @@ function splitWpHeader(html: string): { tagline?: string; subtitle?: string; bod
   return { tagline, subtitle, body: rest };
 }
 
-const normalizeTitle = (s: string) => decodeEntities(s).toLowerCase().replace(/[^a-z0-9]+/g, '');
+const normalizeTitle = (s: string) =>
+  decodeEntities(s)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
 
 let wpHeader: ReturnType<typeof splitWpHeader> | undefined;
 let wpSections = wpPage?.sections ?? [];
@@ -114,6 +126,18 @@ let url = '';
 let sidebarRelated: { slug: string; title: string; category?: { slug: string; title: string } }[] = [];
 let latest: Post[] = [];
 let metadata: MetaData;
+// Props for the NewsArticle/BreadcrumbList markup, built alongside the page
+// metadata so the two can't drift apart.
+let articleSchema: {
+  headline: string;
+  description: string;
+  url: string;
+  image?: string;
+  author?: string;
+  datePublished?: string;
+  dateModified?: string;
+  category?: { slug: string; title: string };
+} | null = null;
 
 if (isPost) {
   const post = rowToPost(row as PostRow);
@@ -130,10 +154,21 @@ if (isPost) {
     .map(rowToPost);
   metadata = {
     title: row!.title,
-    description: row!.excerpt,
+    description: metaDescription(row!.excerpt),
     canonical: url,
     robots: { index: blogPostRobots?.index, follow: blogPostRobots?.follow },
     openGraph: { type: 'article', ...(row!.image_url ? { images: [{ url: row!.image_url }] } : {}) },
+  };
+  articleSchema = {
+    headline: row!.title,
+    description: metaDescription(row!.excerpt),
+    url,
+    // Image URLs in D1 are site-relative (/files/…); schema.org needs absolute.
+    image: row!.image_url ? String(getCanonical(row!.image_url)) : undefined,
+    author: row!.author || undefined,
+    datePublished: row!.published_at ?? row!.created_at,
+    dateModified: row!.updated_at,
+    category: parseTaxonomies(row!.categories).filter((c) => c.slug !== 'uncategorized')[0],
   };
 } else {
   metadata = {
@@ -144,6 +179,9 @@ if (isPost) {
 ---
 
 <Layout metadata={metadata}>
+  <Fragment slot="head">
+    {articleSchema && <NewsArticleSchema {...articleSchema} />}
+  </Fragment>
   {
     isPost ? (
       <>
@@ -215,10 +253,12 @@ if (isPost) {
   }
 </Layout>
 
-{/* The about-us "heading + hairline rule" section style, applied to the WP
+{
+  /* The about-us "heading + hairline rule" section style, applied to the WP
     exports' h2s. The headings come from set:html, so Astro's scoped styles
     can't reach them; a flex ::after also can't be expressed with prose-h2:*
-    utilities. Hence a global rule keyed off the .wp-prose wrapper. */}
+    utilities. Hence a global rule keyed off the .wp-prose wrapper. */
+}
 <style is:global>
   .wp-prose h2 {
     display: flex;

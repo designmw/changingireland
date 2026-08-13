@@ -3,7 +3,7 @@ export const prerender = false;
 
 import Layout from '~/layouts/PageLayout.astro';
 import PageHeader from '~/components/PageHeader.astro';
-import LocalBusinessSchema from '~/components/schema/LocalBusinessSchema.astro';
+import NewsMediaOrganizationSchema from '~/components/schema/NewsMediaOrganizationSchema.astro';
 import { Icon } from 'astro-icon/components';
 import { business } from '~/config/business';
 
@@ -37,7 +37,7 @@ const metadata = {
 
 <Layout metadata={metadata}>
   <Fragment slot="head">
-    <LocalBusinessSchema />
+    <NewsMediaOrganizationSchema />
   </Fragment>
 
   <PageHeader

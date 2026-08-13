@@ -7,6 +7,7 @@ import RichEditor from '~/components/RichEditor.astro';
 import { Icon } from 'astro-icon/components';
 import { isEditor, adminRedirect } from '~/lib/admin';
 import { getDb } from '~/lib/auth';
+import { sanitizeArticleHtml } from '~/lib/sanitize';
 import {
   createPost,
   updatePost,
@@ -88,7 +89,10 @@ if (id && db) {
 if (Astro.request.method === 'POST' && db) {
   const fd = await Astro.request.formData();
   const title = String(fd.get('title') ?? '').trim();
-  const content = String(fd.get('content') ?? '').trim();
+  // Sanitise before anything else touches it. Quill runs in the browser only,
+  // so this field can carry hand-crafted HTML from any editor account, and the
+  // article page renders it with set:html. See src/lib/sanitize.ts.
+  const content = sanitizeArticleHtml(String(fd.get('content') ?? '').trim()).trim();
   const imageUrl = String(fd.get('image_url') ?? '').trim();
   const imageAlt = String(fd.get('image_alt') ?? '').trim();
   const categoriesText = String(fd.get('categories') ?? '').trim();

@@ -6,7 +6,6 @@ import cloudflare from '@astrojs/cloudflare';
 
 import { unified } from '@astrojs/markdown-remark';
 
-import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 import mdx from '@astrojs/mdx';
 import partytown from '@astrojs/partytown';
@@ -63,7 +62,10 @@ export default defineConfig({
   }),
 
   integrations: [
-    sitemap(),
+    // No @astrojs/sitemap here on purpose. It can only enumerate prerendered
+    // routes, and on this site that is the static shell — it produced a sitemap
+    // of 18 URLs containing every /admin/* page and /login, and none of the ~1k
+    // articles. src/pages/sitemap.xml.ts builds the real one from D1 instead.
     mdx(),
     icon({
       include: {

@@ -5,6 +5,7 @@ import Layout from '~/layouts/PageLayout.astro';
 import Grid from '~/components/blog/Grid.astro';
 import GridItem from '~/components/blog/GridItem.astro';
 import AdSlot from '~/components/AdSlot.astro';
+import NewsMediaOrganizationSchema from '~/components/schema/NewsMediaOrganizationSchema.astro';
 import { getFormattedDate } from '~/utils/utils';
 
 import { getDb } from '~/lib/auth';
@@ -68,6 +69,13 @@ const metadata = {
 ---
 
 <Layout metadata={metadata}>
+  {
+    /* Publisher identity every NewsArticle on the site points its
+      `publisher` at — see NewsArticleSchema.astro. */
+  }
+  <Fragment slot="head">
+    <NewsMediaOrganizationSchema />
+  </Fragment>
   <h1 class="sr-only">Changing Ireland — community development news</h1>
 
   {/* ── Latest News hero: 1 lead + 2 side + row of 3 ─────────────────── */}

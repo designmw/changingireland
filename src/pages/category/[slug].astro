@@ -7,6 +7,7 @@ import Grid from '~/components/blog/Grid.astro';
 import PageNav from '~/components/blog/PageNav.astro';
 
 import { blogCategoryRobots } from '~/utils/blog';
+import { getCanonical } from '~/utils/permalinks';
 import { getDb } from '~/lib/auth';
 import { getPublishedPage, getTaxonomyCounts } from '~/lib/posts';
 import { rowToPost } from '~/lib/post-adapter';
@@ -26,6 +27,8 @@ const posts = result.rows.map(rowToPost);
 const metadata = {
   title: `${title}${result.page > 1 ? ` — Page ${result.page}` : ''}`,
   description: `Articles filed under ${title} in the Changing Ireland archive.`,
+  // Self-referencing canonical including ?page=N — see the note in news/index.astro.
+  canonical: String(getCanonical(result.page > 1 ? `/category/${slug}?page=${result.page}` : `/category/${slug}`)),
   robots: { index: blogCategoryRobots?.index && result.page === 1, follow: blogCategoryRobots?.follow },
 };
 ---

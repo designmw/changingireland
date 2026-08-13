@@ -73,6 +73,25 @@ export function makeExcerpt(content: string, limit = 200): string {
   return text.length <= limit ? text : text.slice(0, limit).replace(/\s+\S*$/, '') + '…';
 }
 
+/**
+ * Trim an excerpt down to something a search engine will actually show.
+ *
+ * Google truncates around 155–160 characters. The excerpts imported from
+ * WordPress run to 350+, so every article page was shipping a description that
+ * got cut mid-sentence in results. Cuts on a word boundary and only adds the
+ * ellipsis when something was actually removed.
+ */
+export function metaDescription(text: string, limit = 155): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length <= limit) return clean;
+  return (
+    clean
+      .slice(0, limit)
+      .replace(/\s+\S*$/, '')
+      .replace(/[,;:–—-]$/, '') + '…'
+  );
+}
+
 const ORDER = 'ORDER BY COALESCE(published_at, created_at) DESC';
 
 /**
