@@ -113,6 +113,12 @@ export default defineConfig({
   ],
 
   image: {
+    // Build-time image optimization. Without this the adapter's workerd image
+    // service stays in place and its transform is a no-op, so every
+    // _astro/*.webp ships as the original full-size JPEG/PNG. The entrypoint
+    // must NOT be the literal 'astro/assets/services/sharp' - the adapter
+    // special-cases that exact string and overrides it.
+    service: { entrypoint: './src/lib/sharp-image-service.ts' },
     // The endpoint route must match the site's trailing-slash behaviour or the
     // dev router 404s every local image. This template ships with
     // trailingSlash: false, so the route is registered WITHOUT the slash

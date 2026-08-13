@@ -325,6 +325,33 @@ function sizeFlowImages(html: string): string {
   });
 }
 
+/**
+ * Send external links to a new tab.
+ *
+ * These pages are directories: most of the content is links out to other
+ * organisations, and losing the page you were reading down is the wrong
+ * outcome when you click one. WordPress set target on only some of them (7 of
+ * 64 on /advice-for-groups), so it is applied consistently here.
+ *
+ * Links back into this site are left alone — opening your own pages in new
+ * tabs just litters the browser.
+ *
+ * rel="noopener noreferrer" rides along because target="_blank" otherwise
+ * hands the opened page a reference back to this one.
+ */
+function externalLinksToNewTab(html: string): string {
+  return html.replace(/<a\b([^>]*)>/g, (tag, attrs: string) => {
+    const href = attrs.match(/href="([^"]*)"/)?.[1] ?? '';
+    if (!/^https?:\/\//i.test(href)) return tag;
+    if (/\bchangingireland\.ie/i.test(href)) return tag;
+
+    let out = attrs;
+    if (!/\btarget=/.test(out)) out += ' target="_blank"';
+    if (!/\brel=/.test(out)) out += ' rel="noopener noreferrer"';
+    return `<a${out}>`;
+  });
+}
+
 export function renderWpBody(html: string): string {
   const tokens = pairStats(tokenize(html));
   const sections: { heading: string | null; tokens: Token[] }[] = [{ heading: null, tokens: [] }];
@@ -332,10 +359,12 @@ export function renderWpBody(html: string): string {
     if (t.kind === 'h2') sections.push({ heading: t.html, tokens: [] });
     else sections[sections.length - 1].tokens.push(t);
   }
-  return sizeImages(
-    sections
-      .filter((s) => s.heading !== null || s.tokens.length > 0)
-      .map((s) => renderSection(s.heading, s.tokens))
-      .join('')
+  return externalLinksToNewTab(
+    sizeImages(
+      sections
+        .filter((s) => s.heading !== null || s.tokens.length > 0)
+        .map((s) => renderSection(s.heading, s.tokens))
+        .join('')
+    )
   );
 }
