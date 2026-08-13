@@ -83,8 +83,10 @@ export const business: BusinessConfig = {
   // moves off WordPress — taking the schema logo with it.
   image: 'https://changingireland.ie/ci-logo.webp',
   showFooterMap: true,
+  // Shown in the footer's brand column and used as the description in the
+  // NewsMediaOrganization schema.
   description:
-    'Changing Ireland is the independent national magazine for community development and social inclusion, published from Moyross, Limerick since 2001.',
+    'A not-for-profit magazine published in print and online, featuring quality original journalism about community development, social inclusion, collective action, empowerment, equality and human rights in Ireland.',
   openingHours: ['Mo-Fr 09:00-17:00'],
   sameAs: [
     'https://www.facebook.com/ChangingIrelandMagazine',
