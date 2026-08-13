@@ -37,7 +37,7 @@ export const headerData = {
         { text: 'Inclusion', href: getPermalink('/category/inclusion') },
       ],
     },
-    { text: 'Magazines', href: getPermalink('/magazines'), mega: 'magazines' },
+    { text: 'Magazines since 2001', href: getPermalink('/magazines'), mega: 'magazines' },
     { text: 'Advice For Groups', href: getPermalink('/advice-for-groups') },
     { text: 'Support For Individuals', href: getPermalink('/support-for-individuals') },
     { text: 'Volunteering', href: getPermalink('/volunteering') },
