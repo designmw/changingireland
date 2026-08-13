@@ -140,6 +140,50 @@ const innerP = (html: string) => html.replace(/^<p>/, '').replace(/<\/p>$/, '');
 // h4 rather than an h3 (awards on /advice-for-groups, funds on /funding).
 // Capsy paragraphs between entries become full-width group labels that split
 // the grid; a capsy line directly after the h4 stays in the card as meta.
+/**
+ * Pull a card's first image out of its body so it can be rendered as a header.
+ *
+ * WordPress left images wherever the author dropped them, which in practice
+ * means below the "Learn More" link on one card and mid-paragraph on the next.
+ * Read down a grid of those and the images look accidental. Hoisting the first
+ * one makes every card the same shape; the fixed-height, cropped-to-fill
+ * treatment in the .ci-card-media CSS is what then gives them a common size.
+ *
+ * Only the first image moves. A card carrying several has them for a reason,
+ * so the rest stay in the flow.
+ */
+function splitCardMedia(body: Token[]): { media: string | null; rest: Token[] } {
+  // A lone image is its own token; more often WordPress wrapped it in a <p>.
+  // A paragraph counts when the image is the first thing in it — either on its
+  // own, or leading the text (WP's `<p><img>caption text</p>` shape). Anything
+  // where the image sits mid-sentence is left alone; pulling it out would
+  // change what the author wrote.
+  const leading = /^<p[^>]*>\s*((?:<a [^>]*>\s*)?<img\b[^>]*>(?:\s*<\/a>)?)\s*/;
+
+  for (let i = 0; i < body.length; i++) {
+    const token = body[i];
+    if (token.kind !== 'block') continue;
+    const html = token.html.trim();
+
+    if (isMedia(token)) {
+      return { media: html, rest: body.filter((_, n) => n !== i) };
+    }
+
+    const match = html.match(leading);
+    if (!match) continue;
+    const remainder = html.slice(match[0].length).replace(/^\s*(?:<\/p>)?\s*$/, '');
+    if (!remainder) {
+      // The paragraph held nothing else — drop it with the image.
+      return { media: match[1], rest: body.filter((_, n) => n !== i) };
+    }
+    // Keep the paragraph, minus the image it opened with.
+    const trimmed: Token = { ...token, html: html.replace(match[0], html.startsWith('<p') ? '<p>' : '') };
+    return { media: match[1], rest: body.map((t, n) => (n === i ? trimmed : t)) };
+  }
+
+  return { media: null, rest: body };
+}
+
 function renderH4Cards(tokens: Token[]): string | null {
   if (tokens.filter((t) => t.kind === 'h4').length < 2) return null;
   let out = '';
@@ -147,8 +191,10 @@ function renderH4Cards(tokens: Token[]): string | null {
   let current: Token[] | null = null;
   const flushEntry = () => {
     if (!current) return;
-    let body = '';
-    current.forEach((t, i) => {
+    // Same header treatment as the h3 cards above.
+    const { media, rest } = splitCardMedia(current);
+    let body = media ? `<div class="ci-card-media">${media}</div>` : '';
+    rest.forEach((t, i) => {
       // The card's lead h4 renders as an h3 (an h4 straight after the section
       // h2 fails WCAG heading order) but keeps the eyebrow look via .ci-lead.
       if (i === 0 && t.kind === 'h4') body += leadH4(t.html);
@@ -206,10 +252,14 @@ function renderSection(headingHtml: string | null, tokens: Token[]): string {
     out += renderRun(demoteLeadingH4s(intro));
     out += '<div class="ci-cards">';
     for (const e of entries) {
+      // The image is pulled out of the body and rendered as a header above the
+      // eyebrow, so every card in the grid has the same shape.
+      const { media, rest } = splitCardMedia(e.body);
       out += '<article class="ci-card">';
+      if (media) out += `<div class="ci-card-media">${media}</div>`;
       if (e.eyebrow) out += `<p class="ci-card-eyebrow">${e.eyebrow}</p>`;
       out += e.titleHtml;
-      out += renderRun(e.body);
+      out += renderRun(rest);
       out += '</article>';
     }
     out += '</div>';
@@ -251,6 +301,16 @@ function renderProse(tokens: Token[]): string {
  * still be reasoned about.
  */
 function sizeImages(html: string): string {
+  // Card header images are governed entirely by CSS — they fill a fixed box and
+  // crop. An inline max-width/height here would outrank that (inline beats the
+  // stylesheet), so those blocks are passed over.
+  return html
+    .split(/(<div class="ci-card-media">[\s\S]*?<\/div>)/)
+    .map((chunk) => (chunk.startsWith('<div class="ci-card-media">') ? chunk : sizeFlowImages(chunk)))
+    .join('');
+}
+
+function sizeFlowImages(html: string): string {
   return html.replace(/<img\b[^>]*>/g, (tag) => {
     const width = Number(tag.match(/\bwidth="(\d+)"/)?.[1] ?? 0);
     if (!width || /style="/.test(tag)) return tag;

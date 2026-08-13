@@ -344,6 +344,7 @@ if (isPost) {
   .wp-prose .ci-card > :last-child {
     margin-bottom: 0;
   }
+  /* Images left in a card flow keep their old restrained size. */
   .wp-prose .ci-card img {
     max-height: 9rem;
     width: auto;
@@ -351,11 +352,41 @@ if (isPost) {
     border-radius: 0.5rem;
     margin: 0.25rem 0 0.5rem;
   }
+
+  /* Card header image. Declared AFTER the rule above: both are (0,2,1) so
+     source order decides, and an earlier position let `width: auto` there win
+     and leave headers at their natural width.
+
+     The card's padding is cancelled with negative margins so the photo runs to
+     the edges. A fixed height with object-fit: cover is what makes a grid read
+     as one set — heights match, and nothing is stretched to get there. */
+  .wp-prose .ci-card {
+    overflow: hidden;
+  }
+  .wp-prose .ci-card-media {
+    margin: -1.5rem -1.5rem 1.25rem;
+  }
+  .wp-prose .ci-card-media a,
+  .wp-prose .ci-card-media img {
+    display: block;
+  }
+  .wp-prose .ci-card-media img {
+    width: 100%;
+    height: 12.5rem;
+    max-width: none;
+    max-height: none;
+    object-fit: cover;
+    border-radius: 0;
+    margin: 0;
+  }
   /* An odd trailing card would sit beside empty space; span the full row and
      let its image sit large beside the text (e.g. the "Advertise in print"
      card on /advertise). */
   .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) {
     grid-column: 1 / -1;
+  }
+  .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) .ci-card-media img {
+    height: 17rem;
   }
   .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) img {
     max-height: 15rem;
