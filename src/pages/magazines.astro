@@ -30,12 +30,39 @@ const escapeHtml = (s: string) =>
 // spaces, which stop long lines wrapping and push them off the page.
 const unglue = (s: string) => s.replace(/&nbsp;|\u00a0/g, ' ');
 
+/**
+ * Lines that are not contents at all. Issues 68 and 69 were imported with the
+ * scrape of the old site's page chrome attached: raw theme CSS, the cookie-
+ * consent boilerplate, and the office address block. None of that is an
+ * article.
+ */
+function isJunk(line: string): boolean {
+  if (/\{[^}]*\}/.test(line)) return true; // raw CSS rules
+  if (/cookies?/i.test(line) && /website|consent|browser|preferences/i.test(line)) return true;
+  if (/@/.test(line) && /\d{2,}/.test(line)) return true; // email + phone address block
+  return false;
+}
+
 /** Break a contents blurb into its individual entries. */
 function descriptionItems(text: string): string[] {
-  return unglue(text)
+  // Issues 68 and 69 were imported with the whole scraped page after the real
+  // contents: "Contact Us", the address, the cookie-consent dialog, raw theme
+  // CSS. Nothing after the first piece of page chrome is an article, so cut
+  // there rather than trying to pattern-match every kind of junk line.
+  const chrome = unglue(text).search(/\n\s*(Contact Us|We value your privacy|© Changing Ireland)\s*(\n|$)/);
+  const contents = chrome === -1 ? unglue(text) : unglue(text).slice(0, chrome);
+  return contents
     .split(/\n|•/)
     .flatMap((line) => {
       const trimmed = line.trim();
+      // Issue 54 is a printed table of contents on one line, entries prefixed
+      // by their page numbers: "4-5 NEWS BRIEFS … 6-9 THE BIG ISSUE: …".
+      // Split ahead of each page token and drop the numbers.
+      if ((trimmed.match(/(?:^|\s)\d{1,2}(?:-\d{1,2})?\s+[A-Z‘'"]/g) ?? []).length >= 3) {
+        return trimmed
+          .split(/(?=(?:^|\s)\d{1,2}(?:-\d{1,2})?\s+[A-Z‘'"])/)
+          .map((e) => e.replace(/^\s*\d{1,2}(?:-\d{1,2})?\s+/, ''));
+      }
       // A line carrying no label but several dash-separated sentences is
       // really several entries. Lines that DO have a label keep their dash,
       // because it belongs to the label there ("LEAD STORY – CRAIG O’BRIEN:").
@@ -45,7 +72,7 @@ function descriptionItems(text: string): string[] {
       return [trimmed];
     })
     .map((line) => line.trim().replace(/^[–—-]\s*/, ''))
-    .filter(Boolean);
+    .filter((line) => line && !isJunk(line));
 }
 
 /**
@@ -71,7 +98,14 @@ function boldSubject(item: string): string {
   if (caps && caps[1].replace(/[^A-Za-z]/g, '').length >= 6) {
     return `<strong>${escapeHtml(caps[1])}</strong>${escapeHtml(item.slice(caps[1].length))}`;
   }
-  return escapeHtml(item);
+  // Plain sentence-case headline — most issues before ~68 list their stories
+  // this way, with no label at all ("Ballyfermot children speak out"). Bold
+  // the opening two or three words so every entry leads bold, per the style.
+  const opening = item.match(/^((?:[^\s]+\s+){1,2}[^\s]+)/);
+  if (opening && item.length > opening[1].length + 4) {
+    return `<strong>${escapeHtml(opening[1])}</strong>${escapeHtml(item.slice(opening[1].length))}`;
+  }
+  return `<strong>${escapeHtml(item)}</strong>`;
 }
 
 // Descriptions written in the admin rich-text editor arrive as HTML and are
@@ -141,7 +175,7 @@ const metadata = {
               class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 sm:p-6"
               data-issue={m.issue}
               data-date={m.published_date || '0000'}
-              data-search={`${m.title} ${m.description}`.toLowerCase()}
+              data-search={(m.title + ' ' + formatDescription(m.description).replace(/<[^>]+>/g, ' ')).toLowerCase()}
             >
               <div class="grid gap-6 sm:grid-cols-[14rem_minmax(0,1fr)]">
                 <a
