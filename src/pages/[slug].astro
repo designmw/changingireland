@@ -154,6 +154,12 @@ if (isPost) {
     .map(rowToPost);
   metadata = {
     title: row!.title,
+    // No " — Changing Ireland" suffix on articles. Headlines here run to a
+    // median of 58 characters, so the 19-character suffix pushed 723 of 971
+    // titles past the ~65 Google will show; dropping it brings 448 of them
+    // back inside. Search results still show the site name separately, and on
+    // a news site the headline is what earns the click.
+    ignoreTitleTemplate: true,
     description: metaDescription(row!.excerpt),
     canonical: url,
     robots: { index: blogPostRobots?.index, follow: blogPostRobots?.follow },

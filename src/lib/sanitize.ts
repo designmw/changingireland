@@ -225,6 +225,11 @@ function enforceAttributes(doc: Node): Node {
       }
     }
 
+    // The page already has its own <h1> (the headline), so an <h1> inside the
+    // body makes two. Imported WordPress content had 21 of these; demote
+    // rather than drop, since they are real sub-headings.
+    if (node.name === 'h1') node.name = 'h2';
+
     // Anything opening a new tab must not hand the opener a window reference.
     if (node.name === 'a' && attrs.target === '_blank') {
       attrs.rel = attrs.rel?.includes('noopener') ? attrs.rel : `${attrs.rel ?? ''} noopener noreferrer`.trim();
