@@ -245,7 +245,7 @@ if (isPost) {
               </nav>
             )}
             <div
-              class="wp-prose prose max-w-none prose-headings:font-heading prose-headings:text-heading prose-a:text-primary prose-img:rounded-xl
+              class="wp-prose prose max-w-4xl prose-headings:font-heading prose-headings:text-heading prose-a:text-primary prose-img:rounded-xl
                 prose-h2:font-extrabold prose-h2:text-2xl md:prose-h2:text-3xl prose-h2:scroll-mt-24
                 prose-h3:font-extrabold prose-h3:text-xl
                 prose-h4:text-xs prose-h4:font-bold prose-h4:uppercase prose-h4:tracking-wider prose-h4:text-primary prose-h4:mb-1
@@ -391,12 +391,58 @@ if (isPost) {
     border-radius: 0;
     margin: 0;
   }
-  /* The old "odd trailing card" special case lived here: it spanned the last
-     card across an otherwise half-empty two-column row and laid it out
-     image-beside-text. Cards stack one per row now, so there is no empty half
-     to fill — and the selector was still firing, handing five image-free
-     entries a 392px text column inside a 1008px row. */
-
+  /* An odd trailing card would sit beside empty space; span the full row and
+     let its image sit large beside the text (e.g. the "Advertise in print"
+     card on /advertise). */
+  .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) {
+    grid-column: 1 / -1;
+  }
+  /* At full width there is room to set the image beside the text, which suits
+     these cards far better than a header: a contained image in a 894px-wide
+     header left most of the row empty either side of it. Only at this width —
+     inside a 438px card the same split would leave about 165px for the image
+     and a cramped column for the text. */
+  @media (min-width: 768px) {
+    .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+      gap: 1.75rem;
+      align-items: center;
+    }
+    .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) .ci-card-media {
+      /* Bleed to the card's left, top and bottom edges, but not its right. */
+      margin: -1.5rem 0 -1.5rem -1.5rem;
+      border-bottom: 0;
+      border-right: 1px solid rgb(243 244 246);
+      height: 100%;
+      display: grid;
+      place-items: center;
+    }
+    .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) .ci-card-media img {
+      /* Fixed box + contain, the same as the stacked headers. Letting the
+         element take the picture's own shape reads better when it works, but
+         it only worked for portraits: the grid row still set a height, so the
+         one landscape photo on /whats-on came out 326x256 from an 810x455
+         original. A box it fits inside cannot do that. */
+      width: 100%;
+      height: 18rem;
+      max-width: none;
+      max-height: none;
+      object-fit: contain;
+    }
+  }
+  /* The full-width card is twice as wide, so a header of the same height
+     crops more than twice as hard — an 810x455 photo lost everything above
+     the shoulders. Taller box, shallower crop. */
+  .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) .ci-card-media img {
+    height: 16rem;
+    max-height: none;
+  }
+  .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) img {
+    max-height: 15rem;
+    float: right;
+    margin: 0 0 1rem 1.5rem;
+  }
   .wp-prose .ci-card-eyebrow {
     font-size: 0.75rem;
     font-weight: 700;
@@ -435,172 +481,6 @@ if (isPost) {
     color: var(--aw-color-text-heading);
     margin: 2.25rem 0 0.25rem;
   }
-
-  /* ── Standalone page restyle ──────────────────────────────────────────
-     Two different things share this wrapper and want different widths.
-     Running text wants a readable measure — much past 75 characters and the
-     eye loses the line. Card grids want the whole column: at max-w-4xl the
-     page left 328px of empty space at the right on a 1728px screen while
-     squeezing cards into two columns.
-
-     So the wrapper is unconstrained, and the measure is put back on the text
-     elements only. */
-  .wp-prose > p,
-  .wp-prose > ul,
-  .wp-prose > ol,
-  .wp-prose > blockquote,
-  .wp-prose > .ci-group-label,
-  .wp-prose .ci-split {
-    max-width: 56rem;
-  }
-
-  /* One card per row, stacked. */
-  .wp-prose .ci-cards {
-    grid-template-columns: 1fr;
-  }
-  /* Stacked means every card is full width, so each one gets the image-beside-
-     text treatment that the odd trailing card already had — a header image
-     across 1216px would be a letterbox, and text run to that width is well
-     past a comfortable line. */
-  @media (min-width: 768px) {
-    .wp-prose .ci-card:has(.ci-card-media) {
-      display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-      gap: 1.75rem;
-      align-items: center;
-    }
-    .wp-prose .ci-card:has(.ci-card-media) .ci-card-media {
-      margin: -1.5rem 0 -1.5rem -1.5rem;
-      border-bottom: 0;
-      border-right: 1px solid rgb(243 244 246);
-      height: 100%;
-      display: grid;
-      place-items: center;
-    }
-    .wp-prose .ci-card:has(.ci-card-media) .ci-card-media img {
-      width: 100%;
-      height: 15rem;
-      max-width: none;
-      max-height: none;
-      object-fit: contain;
-    }
-    /* Without an image there is no second column to bound the text, so hold it
-       to a readable measure rather than letting it run the full width. */
-    .wp-prose .ci-card:not(:has(.ci-card-media)) .ci-card-body > * {
-      max-width: 60rem;
-    }
-  }
-
-  /* Cards are equal height in a row whether or not they carry an image, so
-     their innards have to stretch rather than sit at the top of a tall box:
-     that is what left "Your local library" with a block of dead space under
-     its one line of text. */
-  .wp-prose .ci-card {
-    display: flex;
-    flex-direction: column;
-    transition:
-      border-color 0.15s ease,
-      box-shadow 0.15s ease,
-      transform 0.15s ease;
-  }
-  .wp-prose .ci-card:hover {
-    border-color: rgb(209 213 219);
-    box-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.12);
-    transform: translateY(-1px);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .wp-prose .ci-card {
-      transition: none;
-    }
-    .wp-prose .ci-card:hover {
-      transform: none;
-    }
-  }
-  .wp-prose .ci-card-body {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-  }
-  /* Pin the closing line to the bottom, so a row of cards has its actions on
-     one line instead of wherever each card's text happened to stop — but only
-     when that line is the link out. A card whose last element is its body text
-     (e.g. "Your local library", one sentence and no link) would otherwise have
-     the text itself shoved to the foot of the box, under a gap. */
-  .wp-prose .ci-card-body > p:last-child:has(> a:only-child) {
-    margin-top: auto;
-    margin-bottom: 0;
-  }
-  .wp-prose .ci-card-body > p:last-child:not(:has(> a:only-child)) {
-    margin-bottom: 0;
-  }
-  /* A card whose last line is just a link is a call to action; make it read
-     like one rather than like body copy that happens to be underlined. */
-  .wp-prose .ci-card-body > p:last-child > a:only-child {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-weight: 600;
-    text-decoration: none;
-    padding-top: 0.75rem;
-  }
-  .wp-prose .ci-card-body > p:last-child > a:only-child::after {
-    content: '→';
-    transition: transform 0.15s ease;
-  }
-  .wp-prose .ci-card:hover .ci-card-body > p:last-child > a:only-child::after {
-    transform: translateX(2px);
-  }
-  .wp-prose .ci-card-body > p:last-child > a:only-child:hover {
-    text-decoration: underline;
-  }
-
-  /* ── Entries without an image render as a list, not a card ─────────────
-     Researched rather than guessed: GOV.UK's own design-system backlog notes
-     that cards are often reached for to paper over a weak hierarchy, and
-     their content-heavy browse pages use a bold link with a one-line
-     description under a heading — no boxes. /advice-for-groups is exactly
-     that shape: 65 entries of title, one sentence and a link. Boxed and
-     stacked it ran to nearly 18 screens; as a list it is a fraction of that
-     and far quicker to scan.
-
-     Entries that DO carry an image keep the card, because a photograph needs
-     a container to sit in. So the treatment follows the content instead of
-     being applied uniformly. */
-  .wp-prose .ci-card:not(:has(.ci-card-media)) {
-    background: none;
-    border: 0;
-    border-top: 1px solid rgb(229 231 235);
-    border-radius: 0;
-    box-shadow: none;
-    padding: 1.25rem 0;
-    margin: 0;
-  }
-  .wp-prose .ci-card:not(:has(.ci-card-media)):hover {
-    background: rgb(249 250 251);
-    box-shadow: none;
-    transform: none;
-    border-color: rgb(229 231 235);
-  }
-  .wp-prose .ci-cards:has(.ci-card:not(:has(.ci-card-media))) {
-    gap: 0;
-  }
-  .wp-prose .ci-card:not(:has(.ci-card-media)) h3 {
-    font-size: 1.0625rem;
-    margin: 0 0 0.25rem;
-  }
-  .wp-prose .ci-card:not(:has(.ci-card-media)) .ci-card-body > p {
-    margin: 0.25rem 0;
-    color: rgb(75 85 99);
-  }
-  /* The action link sits inline at the end rather than pinned to a box floor. */
-  .wp-prose .ci-card:not(:has(.ci-card-media)) .ci-card-body > p:last-child:has(> a:only-child) {
-    margin-top: 0.25rem;
-  }
-  .wp-prose .ci-card:not(:has(.ci-card-media)) .ci-card-body > p:last-child > a:only-child {
-    padding-top: 0;
-  }
-
   /* Standalone photos in the prose flow sit centred rather than hugging the
      left edge of a wide column. */
   .wp-prose > img {

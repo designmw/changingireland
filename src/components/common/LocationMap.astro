@@ -4,9 +4,14 @@
  * per-client editing beyond that config.
  *
  * The Google embed URL used here takes a plain address query and needs no API
- * key or billing account. The frame is lazy-loaded: it sits below the fold
- * everywhere it's used, so the third-party request only happens for visitors
- * who actually scroll to it.
+ * key or billing account.
+ *
+ * Click-to-load, not lazy-loaded. The frame sits in the footer of every page,
+ * so embedding it directly contacted Google — and let Google set cookies — for
+ * every visitor on every page, with no consent asked. Under GDPR that is a
+ * third-party cookie the visitor never agreed to. Nothing is requested from
+ * Google now until the visitor asks for the map, which is the same bargain the
+ * click-to-play video embeds on /videos already make.
  */
 import { Icon } from 'astro-icon/components';
 import { business } from '~/config/business';
@@ -35,13 +40,20 @@ const mapsHref = `https://www.google.com/maps/search/?api=1&query=${query}`;
 <div class={className}>
   <div class="mb-4 font-heading font-semibold dark:text-gray-300">{title}</div>
 
-  <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-800">
-    <iframe
-      src={embedSrc}
-      title={`Map showing ${business.name} at ${address}`}
-      class="block w-full h-56 border-0"
-      loading="lazy"
-      referrerpolicy="no-referrer-when-downgrade"></iframe>
+  <div
+    class="ci-map overflow-hidden rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-800"
+    data-map-embed={embedSrc}
+    data-map-title={`Map showing ${business.name} at ${address}`}
+  >
+    <button
+      type="button"
+      data-map-load
+      class="group flex h-56 w-full flex-col items-center justify-center gap-2 px-4 text-center text-sm text-muted transition hover:bg-gray-200/60 dark:hover:bg-slate-700/60"
+    >
+      <Icon name="tabler:map-pin" class="h-7 w-7 text-primary" aria-hidden="true" />
+      <span class="font-semibold text-default dark:text-gray-200 group-hover:underline">Show map</span>
+      <span class="text-xs leading-snug">Loads Google Maps, which may set cookies.</span>
+    </button>
   </div>
 
   {
@@ -58,3 +70,23 @@ const mapsHref = `https://www.google.com/maps/search/?api=1&query=${query}`;
     Get directions
   </a>
 </div>
+
+<script>
+  // Swap the placeholder for the real embed only when asked. Delegated so it
+  // survives view transitions without re-binding.
+  document.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement | null)?.closest('[data-map-load]');
+    const box = button?.closest<HTMLElement>('.ci-map');
+    if (!button || !box) return;
+
+    const src = box.dataset.mapEmbed;
+    if (!src) return;
+
+    const frame = document.createElement('iframe');
+    frame.src = src;
+    frame.title = box.dataset.mapTitle ?? 'Map';
+    frame.className = 'block w-full h-56 border-0';
+    frame.referrerPolicy = 'no-referrer-when-downgrade';
+    box.replaceChildren(frame);
+  });
+</script>

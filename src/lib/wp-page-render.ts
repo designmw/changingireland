@@ -130,17 +130,7 @@ function isCapsy(text: string): boolean {
   const letters = text.replace(/[^a-zA-Z]/g, '');
   if (letters.length < 4) return false;
   const upper = text.replace(/[^A-Z]/g, '');
-  if (upper.length / letters.length >= 0.6) return true;
-
-  // Also a label when it opens with a run of shouted words and then explains
-  // itself: /funding groups its programmes under "SMALLISH MONEY Hundreds /
-  // low thousands" and "MEDIUM MONEY Tens of thousands of euro". Measured
-  // whole, those read as mostly lower case, so the ratio above misses them and
-  // the line got swallowed into the preceding card.
-  //
-  // Two shouted words minimum — one would catch "SICAP for Community Groups"
-  // and similar, which are entry titles rather than group headings.
-  return /^(?:[A-Z][A-Z0-9&.-]*\s+){2,}(?:[A-Z][a-z]|$)/.test(text);
+  return upper.length / letters.length >= 0.6;
 }
 
 const isPlainP = (t: Token) => t.kind === 'block' && /^<p>/.test(t.html);
@@ -168,10 +158,7 @@ function splitCardMedia(body: Token[]): { media: string | null; rest: Token[] } 
   // own, or leading the text (WP's `<p><img>caption text</p>` shape). Anything
   // where the image sits mid-sentence is left alone; pulling it out would
   // change what the author wrote.
-  // Tolerates line breaks and stray whitespace ahead of the image: WordPress
-  // routinely emitted `<p><br><img></p>`, which is an image on its own line,
-  // not an image mid-sentence.
-  const leading = /^<p[^>]*>(?:\s|<br\s*\/?>)*((?:<a [^>]*>\s*)?<img\b[^>]*>(?:\s*<\/a>)?)\s*/;
+  const leading = /^<p[^>]*>\s*((?:<a [^>]*>\s*)?<img\b[^>]*>(?:\s*<\/a>)?)\s*/;
 
   for (let i = 0; i < body.length; i++) {
     const token = body[i];
@@ -198,7 +185,7 @@ function splitCardMedia(body: Token[]): { media: string | null; rest: Token[] } 
 }
 
 function renderH4Cards(tokens: Token[]): string | null {
-  if (tokens.filter((t) => t.kind === 'h4').length < 1) return null;
+  if (tokens.filter((t) => t.kind === 'h4').length < 2) return null;
   let out = '';
   let grid: string[] = [];
   let current: Token[] | null = null;
@@ -263,16 +250,8 @@ function renderSection(headingHtml: string | null, tokens: Token[]): string {
     }
   }
   let out = headingHtml ?? '';
-  // One entry is still an entry. This used to require two before it would
-  // build cards, so a section with a single h3 fell through to plain prose —
-  // 18 headings across four pages rendered as loose text beside identical
-  // content that had been carded, which is what made the pages look unfinished.
-  if (entries.length >= 1) {
-    // The intro can itself hold h4-led entries — /funding lists nine funding
-    // programmes that way before its first h3. Card those too rather than
-    // leaving them as loose text above a grid of cards saying the same kind of
-    // thing.
-    out += renderH4Cards(intro) ?? renderRun(demoteLeadingH4s(intro));
+  if (entries.length >= 2) {
+    out += renderRun(demoteLeadingH4s(intro));
     out += '<div class="ci-cards">';
     for (const e of entries) {
       // The image is pulled out of the body and rendered as a header above the

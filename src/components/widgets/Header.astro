@@ -58,9 +58,12 @@ let megaMagazines: MagazineRow[] = [];
 try {
   const db = await getDb();
   if (db) {
-    megaCategories = (await getTaxonomyCounts(db, 'categories'))
-      .filter((c) => !hiddenNavCategories.has(c.slug))
-      .slice(0, 12);
+    // Only for the article counts beside each category. The menu itself comes
+    // from the curated list in navigation.ts: driving it from live counts put
+    // whatever happened to rank top-12 into the nav, which is how "Activism &
+    // Volunteering", "Equality & Rights", "Harry's Diary" and "Funding
+    // Programmes" appeared in a menu that is meant to mirror the WordPress one.
+    megaCategories = (await getTaxonomyCounts(db, 'categories')).filter((c) => !hiddenNavCategories.has(c.slug));
     megaPosts = await getPublishedPosts(db, 2);
     megaMagazines = (await getAllMagazines(db)).slice(0, 4);
   }
@@ -202,27 +205,17 @@ const megaLinkClass =
                     />
                   </button>
 
-                  {mega === 'news' && megaCategories.length > 0 ? (
+                  {mega === 'news' && (subLinks?.length ?? 0) > 0 ? (
                     <div
                       id={`dropdown-menu-${index}`}
                       class="dropdown-menu min-[90rem]:absolute min-[90rem]:inset-x-0 pl-4 min-[90rem]:pl-0 min-[90rem]:hidden min-[90rem]:bg-white min-[90rem]:shadow-2xl min-[90rem]:ring-1 min-[90rem]:ring-black/5 min-[90rem]:rounded-b-xl"
                     >
                       {/* Mobile: plain list. Desktop: category grid + latest stories. */}
                       <ul class="min-[90rem]:hidden font-medium list-none m-0 p-0">
-                        <li>
-                          <a class="py-2 px-5 block" href="/news">
-                            All News
-                          </a>
-                        </li>
-                        <li>
-                          <a class="py-2 px-5 block" href="/videos">
-                            Videos
-                          </a>
-                        </li>
-                        {megaCategories.slice(0, 8).map((c) => (
+                        {(subLinks ?? []).map((sub) => (
                           <li>
-                            <a class="py-2 px-5 block" href={`/category/${c.slug}`}>
-                              {c.title}
+                            <a class="py-2 px-5 block" href={sub.href}>
+                              {sub.text}
                             </a>
                           </li>
                         ))}
@@ -231,14 +224,18 @@ const megaLinkClass =
                         <div class="col-span-2">
                           <p class="text-xs font-bold uppercase tracking-wider text-muted mb-3">Browse by category</p>
                           <ul class="grid grid-cols-2 gap-x-6 gap-y-0.5 list-none m-0 p-0">
-                            {megaCategories.map((c) => (
-                              <li>
-                                <a href={`/category/${c.slug}`} class={megaLinkClass}>
-                                  <span>{c.title}</span>
-                                  <span class="text-xs text-muted font-normal">{c.count}</span>
-                                </a>
-                              </li>
-                            ))}
+                            {(subLinks ?? [])
+                              .filter((sub) => (sub.href ?? '').includes('/category/'))
+                              .map((sub) => (
+                                <li>
+                                  <a href={sub.href} class={megaLinkClass}>
+                                    <span>{sub.text}</span>
+                                    <span class="text-xs text-muted font-normal">
+                                      {megaCategories.find((c) => (sub.href ?? '').endsWith(`/${c.slug}`))?.count ?? ''}
+                                    </span>
+                                  </a>
+                                </li>
+                              ))}
                           </ul>
                           <div class="flex items-center gap-6 mt-4">
                             <a
