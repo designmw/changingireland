@@ -194,6 +194,7 @@ function renderH4Cards(tokens: Token[]): string | null {
     // Same header treatment as the h3 cards above.
     const { media, rest } = splitCardMedia(current);
     let body = media ? `<div class="ci-card-media">${media}</div>` : '';
+    body += '<div class="ci-card-body">';
     rest.forEach((t, i) => {
       // The card's lead h4 renders as an h3 (an h4 straight after the section
       // h2 fails WCAG heading order) but keeps the eyebrow look via .ci-lead.
@@ -203,6 +204,7 @@ function renderH4Cards(tokens: Token[]): string | null {
         body += `<p class="ci-card-meta">${innerP(t.html)}</p>`;
       else body += t.html;
     });
+    body += '</div>';
     grid.push(`<article class="ci-card">${body}</article>`);
     current = null;
   };
@@ -257,9 +259,14 @@ function renderSection(headingHtml: string | null, tokens: Token[]): string {
       const { media, rest } = splitCardMedia(e.body);
       out += '<article class="ci-card">';
       if (media) out += `<div class="ci-card-media">${media}</div>`;
+      // Everything but the image goes in one wrapper, so a card can put the
+      // two side by side with a two-column grid instead of trying to place
+      // each paragraph individually.
+      out += '<div class="ci-card-body">';
       if (e.eyebrow) out += `<p class="ci-card-eyebrow">${e.eyebrow}</p>`;
       out += e.titleHtml;
       out += renderRun(rest);
+      out += '</div>';
       out += '</article>';
     }
     out += '</div>';

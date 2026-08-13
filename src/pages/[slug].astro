@@ -397,6 +397,40 @@ if (isPost) {
   .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) {
     grid-column: 1 / -1;
   }
+  /* At full width there is room to set the image beside the text, which suits
+     these cards far better than a header: a contained image in a 894px-wide
+     header left most of the row empty either side of it. Only at this width —
+     inside a 438px card the same split would leave about 165px for the image
+     and a cramped column for the text. */
+  @media (min-width: 768px) {
+    .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+      gap: 1.75rem;
+      align-items: center;
+    }
+    .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) .ci-card-media {
+      /* Bleed to the card's left, top and bottom edges, but not its right. */
+      margin: -1.5rem 0 -1.5rem -1.5rem;
+      border-bottom: 0;
+      border-right: 1px solid rgb(243 244 246);
+      height: 100%;
+      display: grid;
+      place-items: center;
+    }
+    .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) .ci-card-media img {
+      /* Fixed box + contain, the same as the stacked headers. Letting the
+         element take the picture's own shape reads better when it works, but
+         it only worked for portraits: the grid row still set a height, so the
+         one landscape photo on /whats-on came out 326x256 from an 810x455
+         original. A box it fits inside cannot do that. */
+      width: 100%;
+      height: 18rem;
+      max-width: none;
+      max-height: none;
+      object-fit: contain;
+    }
+  }
   /* The full-width card is twice as wide, so a header of the same height
      crops more than twice as hard — an 810x455 photo lost everything above
      the shoulders. Taller box, shallower crop. */
