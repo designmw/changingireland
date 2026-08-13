@@ -103,6 +103,7 @@ const metadata = {
                 >
                   <img
                     src={thumb(latest.id, 'maxresdefault')}
+                    data-thumb-fallback={thumb(latest.id)}
                     alt=""
                     width="1280"
                     height="720"
@@ -191,6 +192,19 @@ const metadata = {
   </section>
 
   <script>
+    // YouTube only generates maxresdefault for videos uploaded above 720p, so
+    // the featured thumbnail 404s on older uploads. hqdefault always exists.
+    document.querySelectorAll<HTMLImageElement>('img[data-thumb-fallback]').forEach((img) => {
+      img.addEventListener(
+        'error',
+        () => {
+          const fallback = img.dataset.thumbFallback;
+          if (fallback && img.src !== fallback) img.src = fallback;
+        },
+        { once: true }
+      );
+    });
+
     // Click-to-play: swap the thumbnail for a youtube-nocookie embed. Keeps
     // the page free of YouTube iframes (and their cookies) until requested.
     function initVideos() {
