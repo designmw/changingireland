@@ -1,0 +1,81 @@
+---
+/**
+ * Click-to-expand for images in article and ported-page bodies.
+ *
+ * Content images are laid out to sit alongside text, so photographs shot at
+ * 2000px+ end up displayed a few hundred pixels wide. This gives readers the
+ * full-size version without changing the page layout.
+ *
+ * Deliberately dependency-free and built in a bundled <script> rather than an
+ * inline one, so it loads under `script-src 'self'` and doesn't lean on the
+ * 'unsafe-inline' allowance in the CSP.
+ *
+ * Images already wrapped in a link keep their link — the author meant the
+ * click to go somewhere.
+ */
+---
+
+<dialog
+  id="ci-lightbox"
+  class="backdrop:bg-black/80 bg-transparent p-0 max-w-none max-h-none w-full h-full m-0 overscroll-contain"
+  aria-label="Expanded image"
+>
+  <button
+    type="button"
+    data-close
+    class="absolute top-4 right-4 z-10 rounded-full bg-black/60 text-white w-11 h-11 grid place-items-center text-2xl leading-none hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-white"
+    aria-label="Close image"
+  >
+    <span aria-hidden="true">&times;</span>
+  </button>
+  <div class="w-full h-full grid place-items-center p-4 sm:p-8" data-close>
+    <figure class="max-w-full max-h-full m-0 flex flex-col items-center gap-3">
+      <img
+        id="ci-lightbox-img"
+        src=""
+        alt=""
+        class="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-sm shadow-2xl bg-white"
+      />
+      <figcaption id="ci-lightbox-cap" class="text-sm text-white/90 text-center max-w-2xl empty:hidden"></figcaption>
+    </figure>
+  </div>
+</dialog>
+
+<script>
+  const dialog = document.getElementById('ci-lightbox') as HTMLDialogElement | null;
+  const full = document.getElementById('ci-lightbox-img') as HTMLImageElement | null;
+  const cap = document.getElementById('ci-lightbox-cap');
+
+  if (dialog && full && cap) {
+    // Delegated, so it keeps working for content swapped in by the view
+    // transition router without needing to re-bind.
+    document.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement | null;
+      const img = target?.closest('img');
+      if (!img) return;
+      if (!img.closest('.wp-prose, .ci-article-body')) return;
+      // An image inside a link belongs to the link.
+      if (img.closest('a')) return;
+
+      event.preventDefault();
+      full.src = img.currentSrc || img.src;
+      full.alt = img.alt || '';
+      // Prefer the figure's own caption; fall back to the alt text.
+      const figcaption = img.closest('figure')?.querySelector('figcaption');
+      cap.textContent = figcaption?.textContent?.trim() || img.alt || '';
+      dialog.showModal();
+    });
+
+    // Backdrop and close button both carry data-close.
+    dialog.addEventListener('click', (event) => {
+      const el = event.target as HTMLElement | null;
+      if (el?.hasAttribute('data-close') || el?.closest('[data-close]')) dialog.close();
+    });
+
+    // Drop the src on close so a large image isn't held in memory.
+    dialog.addEventListener('close', () => {
+      full.removeAttribute('src');
+      cap.textContent = '';
+    });
+  }
+</script>

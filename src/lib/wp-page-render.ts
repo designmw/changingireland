@@ -90,8 +90,7 @@ interface Entry {
 // An h4 that appears before any h3 in its section skips a heading level
 // (h2 → h4, a WCAG heading-order failure). Render it as an h3 that keeps the
 // small-eyebrow look via .ci-lead.
-const leadH4 = (html: string) =>
-  html.replace(/^<h4([^>]*)>/, '<h3 class="ci-lead"$1>').replace(/<\/h4>\s*$/, '</h3>');
+const leadH4 = (html: string) => html.replace(/^<h4([^>]*)>/, '<h3 class="ci-lead"$1>').replace(/<\/h4>\s*$/, '</h3>');
 
 function demoteLeadingH4s(tokens: Token[]): Token[] {
   let seenH3 = false;
@@ -238,6 +237,21 @@ function renderProse(tokens: Token[]): string {
   );
 }
 
+/**
+ * Let each image grow to fill its container, but never past its own intrinsic
+ * width. The ported pages mix 2000px+ photographs with 225-300px logos, so a
+ * blanket `width: 100%` would fill the column with upscaled, blurry logos.
+ * WordPress kept the real dimensions in the width attribute, so cap on that:
+ * photographs fill the space, small logos stay their own size.
+ */
+function sizeImages(html: string): string {
+  return html.replace(/<img\b[^>]*>/g, (tag) => {
+    const width = Number(tag.match(/\bwidth="(\d+)"/)?.[1] ?? 0);
+    if (!width || /style="/.test(tag)) return tag;
+    return tag.replace(/<img\b/, `<img style="width:100%;max-width:min(100%, ${width}px)"`);
+  });
+}
+
 export function renderWpBody(html: string): string {
   const tokens = pairStats(tokenize(html));
   const sections: { heading: string | null; tokens: Token[] }[] = [{ heading: null, tokens: [] }];
@@ -245,8 +259,10 @@ export function renderWpBody(html: string): string {
     if (t.kind === 'h2') sections.push({ heading: t.html, tokens: [] });
     else sections[sections.length - 1].tokens.push(t);
   }
-  return sections
-    .filter((s) => s.heading !== null || s.tokens.length > 0)
-    .map((s) => renderSection(s.heading, s.tokens))
-    .join('');
+  return sizeImages(
+    sections
+      .filter((s) => s.heading !== null || s.tokens.length > 0)
+      .map((s) => renderSection(s.heading, s.tokens))
+      .join('')
+  );
 }

@@ -10,6 +10,7 @@ import { getCanonical, getPermalink } from '~/utils/permalinks';
 import { blogPostRobots } from '~/utils/blog';
 import { getDb } from '~/lib/auth';
 import NewsArticleSchema from '~/components/schema/NewsArticleSchema.astro';
+import Lightbox from '~/components/common/Lightbox.astro';
 import {
   getPostBySlug,
   getRelatedPosts,
@@ -188,6 +189,7 @@ if (isPost) {
   <Fragment slot="head">
     {articleSchema && <NewsArticleSchema {...articleSchema} />}
   </Fragment>
+  <Lightbox />
   {
     isPost ? (
       <>
@@ -413,7 +415,9 @@ if (isPost) {
   }
   @media (min-width: 1024px) {
     .wp-prose .ci-split {
-      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+      /* Was 1.25fr/1fr, which left photographs about 390px wide in a 930px
+         column and made the pages read as text with thumbnails. */
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 2.5rem;
     }
   }
@@ -426,9 +430,20 @@ if (isPost) {
     gap: 1rem;
   }
   .wp-prose .ci-split-media img {
-    width: auto;
     max-width: 100%;
-    max-height: 20rem;
+    /* 20rem here cropped tall photographs to roughly a third of the column.
+       The per-image max-width from sizeImages() is what stops small logos
+       stretching, so height no longer has to do that job. */
+    max-height: 32rem;
     margin: 0 auto;
+  }
+  /* Content images are clickable — see Lightbox.astro. */
+  .wp-prose img,
+  .ci-article-body img {
+    cursor: zoom-in;
+  }
+  .wp-prose a img,
+  .ci-article-body a img {
+    cursor: pointer;
   }
 </style>
