@@ -5,6 +5,15 @@
  * priority over this catch-all, so a JSON page only serves a path that no
  * file route occupies. On editor-managed sites, remove the hand-authored
  * marketing pages you want the editor to own.
+ *
+ * On demand rather than prerendered, and that matters beyond this route:
+ * it is the catch-all, so it matches every multi-segment path nothing else
+ * claims — /page/2, /category/x/page/3, /some-post/feed. Astro does not run
+ * middleware for prerendered routes, so while this was prerendered those URLs
+ * never reached src/middleware.ts and its WordPress redirects silently 404'd
+ * instead of 301'ing. Serving it on demand puts them back on the middleware
+ * path. The collection is looked up per request, which also means a page added
+ * by an editor appears without a rebuild.
  */
 import { getCollection, type CollectionEntry } from 'astro:content';
 import Layout from '~/layouts/PageLayout.astro';
@@ -12,21 +21,22 @@ import BlockRenderer from '~/components/blocks/BlockRenderer.astro';
 import { pagePathFromId } from '~/contract/v1';
 import type { MetaData } from '~/types';
 
-export const prerender = true;
+export const prerender = false;
 
-export async function getStaticPaths() {
-  const pages = await getCollection('page', ({ data }) => !data.draft);
-  return pages
-    .map((entry) => ({ entry, path: pagePathFromId(entry.id, entry.data) }))
-    .filter(({ path }) => path !== '/')
-    .map(({ entry, path }) => ({ params: { page: path.replace(/^\//, '') }, props: { entry } }));
+const path = `/${(Astro.params.page ?? '').toString().replace(/^\/+|\/+$/g, '')}`;
+
+// The collection is absent entirely on sites that don't use editor-managed
+// pages (this one), where getCollection throws rather than returning [].
+let pages: CollectionEntry<'page'>[] = [];
+try {
+  pages = await getCollection('page', ({ data }) => !data.draft);
+} catch {
+  pages = [];
 }
 
-export interface Props {
-  entry: CollectionEntry<'page'>;
-}
+const entry = pages.find((e) => pagePathFromId(e.id, e.data) === path);
+if (!entry) return new Response(null, { status: 404 });
 
-const { entry } = Astro.props;
 const { title, metadata: pageMeta, blocks } = entry.data;
 
 const metadata: MetaData = {
