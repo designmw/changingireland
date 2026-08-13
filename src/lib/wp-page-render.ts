@@ -238,17 +238,23 @@ function renderProse(tokens: Token[]): string {
 }
 
 /**
- * Let each image grow to fill its container, but never past its own intrinsic
- * width. The ported pages mix 2000px+ photographs with 225-300px logos, so a
- * blanket `width: 100%` would fill the column with upscaled, blurry logos.
- * WordPress kept the real dimensions in the width attribute, so cap on that:
- * photographs fill the space, small logos stay their own size.
+ * Cap each image at its own intrinsic width, so that when a layout stretches
+ * images to fill their container a 300px logo is not blown up to 400px of
+ * blur. The ported pages mix 2000px+ photographs with 225-300px logos, and
+ * WordPress kept the real dimensions in the width attribute.
+ *
+ * Sets `height: auto` and deliberately does NOT set a width. An inline width
+ * would beat every stylesheet rule, including the `width: auto` that card
+ * layouts rely on to stay in proportion — that is exactly how an earlier
+ * version of this stretched 2048x1536 photographs into 388x144 letterboxes.
+ * Which layouts fill their width is decided in CSS, where the cascade can
+ * still be reasoned about.
  */
 function sizeImages(html: string): string {
   return html.replace(/<img\b[^>]*>/g, (tag) => {
     const width = Number(tag.match(/\bwidth="(\d+)"/)?.[1] ?? 0);
     if (!width || /style="/.test(tag)) return tag;
-    return tag.replace(/<img\b/, `<img style="width:100%;max-width:min(100%, ${width}px)"`);
+    return tag.replace(/<img\b/, `<img style="height:auto;max-width:min(100%, ${width}px)"`);
   });
 }
 

@@ -430,11 +430,21 @@ if (isPost) {
     gap: 1rem;
   }
   .wp-prose .ci-split-media img {
+    /* Fill the column, but only here: this context has no competing height,
+       so width + auto height keeps every image in proportion. The per-image
+       max-width from sizeImages() stops small logos being upscaled.
+
+       No max-height. Pairing one with a filled width is what distorts an
+       image — the height gets capped while the width stays put. Width alone
+       bounds these safely enough. */
+    width: 100%;
+    height: auto;
     max-width: 100%;
-    /* 20rem here cropped tall photographs to roughly a third of the column.
-       The per-image max-width from sizeImages() is what stops small logos
-       stretching, so height no longer has to do that job. */
-    max-height: 32rem;
+    /* Clears the 22rem cap on `.wp-prose img` above. That rule keeps its
+       shape through `width: auto`, which this rule overrides — leaving the
+       cap in place would squash anything taller than 22rem at full column
+       width. */
+    max-height: none;
     margin: 0 auto;
   }
   /* Content images are clickable — see Lightbox.astro. */
