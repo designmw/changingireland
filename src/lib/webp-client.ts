@@ -13,16 +13,26 @@ const MAX_WIDTH = 1600;
 const QUALITY = 0.82;
 
 /**
+ * Per-form override for the width cap. The default suits article and cover
+ * images, which never render wider than about 800 CSS px. A full-width
+ * homepage ad renders at 1216 CSS px, so capping it at 1600 leaves only ~1.3x
+ * density and looks soft on a retina screen; that form asks for 2432 instead.
+ */
+export interface CompressOptions {
+  maxWidth?: number;
+}
+
+/**
  * Re-encode a PNG/JPEG File as WebP, downscaling to MAX_WIDTH. Returns the
  * original File untouched for other types (GIF keeps its animation, WebP is
  * already done) and whenever conversion fails or wouldn't save bytes.
  */
-export async function toWebp(file: File): Promise<File> {
+export async function toWebp(file: File, maxWidth: number = MAX_WIDTH): Promise<File> {
   if (!/^image\/(png|jpeg)$/.test(file.type)) return file;
   try {
     const bitmap = await createImageBitmap(file);
     // scale ≤ 1: only ever shrink, never enlarge a small image.
-    const scale = Math.min(1, MAX_WIDTH / bitmap.width);
+    const scale = Math.min(1, maxWidth / bitmap.width);
     const width = Math.max(1, Math.round(bitmap.width * scale));
     const height = Math.max(1, Math.round(bitmap.height * scale));
     const canvas = document.createElement('canvas');
@@ -87,7 +97,7 @@ async function recordDimensions(form: HTMLFormElement, name: string, file: File)
  * Also fills in `<name>_width`/`<name>_height` hidden fields when the form has
  * them — see recordDimensions.
  */
-export function compressFormImages(form: HTMLFormElement, inputNames: string[]): void {
+export function compressFormImages(form: HTMLFormElement, inputNames: string[], opts: CompressOptions = {}): void {
   // Guards the resubmit below: the second pass through this listener must fall
   // through to the real submit instead of intercepting again.
   let converted = false;
@@ -103,7 +113,7 @@ export function compressFormImages(form: HTMLFormElement, inputNames: string[]):
     void Promise.all(
       pending.map(async (input) => {
         const file = input.files![0];
-        const out = await toWebp(file);
+        const out = await toWebp(file, opts.maxWidth ?? MAX_WIDTH);
         // Measured on `out`, the bytes actually being uploaded — toWebp caps
         // width at MAX_WIDTH, so the original file's size would be wrong.
         await recordDimensions(form, input.name, out);

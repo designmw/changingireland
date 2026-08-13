@@ -6,6 +6,18 @@ import { business } from './config/business';
 const telHref = `tel:${business.telephone.replace(/\s/g, '')}`;
 const emailHref = business.email ? `mailto:${business.email}` : undefined;
 
+/**
+ * Category slugs kept out of the "More News" mega menu.
+ *
+ * That menu is built from the live category counts in D1 (see Header.astro),
+ * so a big historical section outranks current ones on volume alone. Listing a
+ * slug here hides it from the nav only — its archive at /category/<slug> still
+ * resolves, is still linked from articles, and stays in the sitemap.
+ */
+export const hiddenNavCategories = new Set([
+  'covid19diaries', // Covid-19 Diaries: a closed 2020-21 series, not a current section
+]);
+
 // Mirrors the WordPress site's menu one-for-one (same labels, same URLs).
 export const headerData = {
   links: [
@@ -75,5 +87,10 @@ export const footerData = {
   theme: 'dark',
   // The tricolour is inline SVG rather than the 🇮🇪 emoji on purpose: Windows
   // has no flag glyphs and renders regional-indicator pairs as the letters "IE".
-  footNote: `© ${business.legalName}, ${new Date().getFullYear()}. All rights reserved. Website by <a href="https://designmywebsite.ie" target="_blank" rel="noopener noreferrer" class="hover:underline">Design My Website</a> <svg viewBox="0 0 18 12" width="18" height="12" role="img" aria-label="Ireland" class="inline-block align-[-0.15em] ml-1 rounded-[1px] ring-1 ring-black/10 dark:ring-white/20"><rect width="6" height="12" fill="#169B62"/><rect x="6" width="6" height="12" fill="#FFFFFF"/><rect x="12" width="6" height="12" fill="#FF883E"/></svg>`,
+  // %%YEAR%% is substituted in Footer.astro, not interpolated here. This object
+  // is built when the module is first evaluated, which on Workers happens in
+  // global scope — and there Date.now() is 0, so `new Date().getFullYear()`
+  // rendered a © 1970 in the live footer. Component render happens during a
+  // request, where the clock is real.
+  footNote: `© ${business.legalName}, %%YEAR%%. All rights reserved. Website by <a href="https://designmywebsite.ie" target="_blank" rel="noopener noreferrer" class="hover:underline">Design My Website</a> <svg viewBox="0 0 18 12" width="18" height="12" role="img" aria-label="Ireland" class="inline-block align-[-0.15em] ml-1 rounded-[1px] ring-1 ring-black/10 dark:ring-white/20"><rect width="6" height="12" fill="#169B62"/><rect x="6" width="6" height="12" fill="#FFFFFF"/><rect x="12" width="6" height="12" fill="#FF883E"/></svg>`,
 };

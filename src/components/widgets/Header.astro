@@ -7,6 +7,7 @@ import ToggleMenu from '~/components/common/ToggleMenu.astro';
 import { getHomePermalink, trimSlash } from '~/utils/permalinks';
 import { getDb } from '~/lib/auth';
 import { getTaxonomyCounts, getPublishedPosts, type PostRow } from '~/lib/posts';
+import { hiddenNavCategories } from '~/navigation';
 import { getAllMagazines, type MagazineRow } from '~/lib/magazines';
 
 interface Link {
@@ -57,7 +58,9 @@ let megaMagazines: MagazineRow[] = [];
 try {
   const db = await getDb();
   if (db) {
-    megaCategories = (await getTaxonomyCounts(db, 'categories')).slice(0, 12);
+    megaCategories = (await getTaxonomyCounts(db, 'categories'))
+      .filter((c) => !hiddenNavCategories.has(c.slug))
+      .slice(0, 12);
     megaPosts = await getPublishedPosts(db, 2);
     megaMagazines = (await getAllMagazines(db)).slice(0, 4);
   }
@@ -76,9 +79,11 @@ const megaLinkClass =
   'flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-default hover:bg-primary/5 hover:text-primary transition-colors';
 ---
 
-{/* Masthead: date + socials left, logo centre, live search right. A named
+{
+  /* Masthead: date + socials left, logo centre, live search right. A named
     region landmark — it sits outside the sticky <header> (only the nav row
-    sticks), and content outside landmarks fails WCAG region checks. */}
+    sticks), and content outside landmarks fails WCAG region checks. */
+}
 <div role="region" aria-label="Masthead" class="hidden min-[90rem]:block border-b border-gray-100 bg-page">
   <div class="max-w-7xl mx-auto px-6 py-4 grid grid-cols-[1fr_auto_1fr] items-center gap-6">
     <div class="justify-self-start">
@@ -123,8 +128,10 @@ const megaLinkClass =
       { 'max-w-7xl': !isFullWidth },
     ]}
   >
-    {/* Mobile row: logo (date beneath, newspaper-style), socials centred,
-        hamburger right. Desktop uses the masthead above instead. */}
+    {
+      /* Mobile row: logo (date beneath, newspaper-style), socials centred,
+        hamburger right. Desktop uses the masthead above instead. */
+    }
     <div class="flex justify-between items-center gap-2 min-[90rem]:hidden">
       <a class="flex items-center shrink-0" href={getHomePermalink()}>
         <Logo class="w-36" />
@@ -157,9 +164,11 @@ const megaLinkClass =
       </div>
     </div>
 
-    {/* Sub-1440px live search — the same combobox as the desktop masthead.
+    {
+      /* Sub-1440px live search — the same combobox as the desktop masthead.
         Kept before the <nav> so BasicScripts' div:last-child toggle can't
-        hide it when the burger menu opens. */}
+        hide it when the burger menu opens. */
+    }
     <div class="min-[90rem]:hidden mt-2.5">
       <HeaderSearch uid="mobile" resultsClass="left-0 right-0" />
     </div>
@@ -186,7 +195,11 @@ const megaLinkClass =
                     data-aw-dropdown-toggle
                   >
                     {text}
-                    <Icon name="tabler:chevron-down" class="w-3.5 h-3.5 ml-0.5 hidden min-[90rem]:inline" aria-hidden="true" />
+                    <Icon
+                      name="tabler:chevron-down"
+                      class="w-3.5 h-3.5 ml-0.5 hidden min-[90rem]:inline"
+                      aria-hidden="true"
+                    />
                   </button>
 
                   {mega === 'news' && megaCategories.length > 0 ? (
@@ -365,4 +378,3 @@ const megaLinkClass =
     </nav>
   </div>
 </header>
-

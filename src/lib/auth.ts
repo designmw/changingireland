@@ -53,16 +53,22 @@ const SESSION_COOKIE = 'ci_session';
 const NAME_COOKIE = 'ci_name';
 const SESSION_DAYS = 30;
 /**
- * OWASP's current floor for PBKDF2-HMAC-SHA256. Costs ~40ms of Worker CPU per
- * login (measured; 100_000 was ~9ms), which is comfortable on Workers Paid but
- * would blow the 10ms CPU limit on the Free plan — drop to 210_000 if this
- * account is ever moved to Free.
+ * DO NOT RAISE THIS. 100,000 is the hard ceiling the Workers runtime allows:
  *
- * Raising this is safe at any time: the iteration count is stored inside each
- * hash, so existing hashes keep verifying at whatever count they were made
+ *   NotSupportedError: Pbkdf2 failed: iteration counts above 100000 are not
+ *   supported (requested 600000).
+ *
+ * OWASP asks for 600,000, and it was briefly set to that on the strength of a
+ * Node benchmark (~40ms, comfortably inside the CPU budget). Node is not the
+ * runtime this ships to: workerd rejects the call outright, so every login
+ * against a hash written at that count threw, and Astro turned the exception
+ * into an empty 404 — the sign-in button appeared to do nothing.
+ *
+ * The count is stored inside each hash, so if the platform limit ever rises,
+ * raising this is safe: old hashes keep verifying at the count they were made
  * with, and `needsRehash` upgrades each account on its next successful login.
  */
-const PBKDF2_ITERATIONS = 600_000;
+const PBKDF2_ITERATIONS = 100_000;
 
 // ---------- password hashing (PBKDF2-SHA256, WebCrypto — Workers-compatible) ----------
 

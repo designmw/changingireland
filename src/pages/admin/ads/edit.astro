@@ -153,31 +153,50 @@ const metadata = { title: id ? 'Edit ad — Admin' : 'New ad — Admin', robots:
           <input type="hidden" name="image_height" value="0" />
           <p class="mt-1.5 text-xs text-muted">
             Recommended size depends on the layout chosen below:
-            <strong>full width 2432 × 608 px</strong>, <strong>half width 1200 × 800 px</strong>. Other shapes still work,
-            the ad just gets taller or shorter to suit.
+            <strong>full width 2432 × 608 px</strong>, <strong>half width 1200 × 800 px</strong>. Other shapes still
+            work, the ad just gets taller or shorter to suit.
           </p>
         </div>
 
         <div>
           <span class={labelClass}>Layout</span>
           <div class="grid gap-3 sm:grid-cols-2">
-            <label class="flex items-start gap-3 rounded-xl border border-gray-300 px-4 py-3 cursor-pointer hover:border-primary transition-colors">
-              <input type="radio" name="width" value="full" checked={form.width === 'full'} class="mt-0.5 h-4 w-4 accent-[var(--aw-color-primary)]" />
+            <label
+              class="flex items-start gap-3 rounded-xl border border-gray-300 px-4 py-3 cursor-pointer hover:border-primary transition-colors"
+            >
+              <input
+                type="radio"
+                name="width"
+                value="full"
+                checked={form.width === 'full'}
+                class="mt-0.5 h-4 w-4 accent-[var(--aw-color-primary)]"
+              />
               <span>
                 <span class="block text-sm font-medium text-default">Full width</span>
                 <span class="block text-xs text-muted">Spans the page on its own. Shows at 1216 px wide.</span>
               </span>
             </label>
-            <label class="flex items-start gap-3 rounded-xl border border-gray-300 px-4 py-3 cursor-pointer hover:border-primary transition-colors">
-              <input type="radio" name="width" value="half" checked={form.width === 'half'} class="mt-0.5 h-4 w-4 accent-[var(--aw-color-primary)]" />
+            <label
+              class="flex items-start gap-3 rounded-xl border border-gray-300 px-4 py-3 cursor-pointer hover:border-primary transition-colors"
+            >
+              <input
+                type="radio"
+                name="width"
+                value="half"
+                checked={form.width === 'half'}
+                class="mt-0.5 h-4 w-4 accent-[var(--aw-color-primary)]"
+              />
               <span>
                 <span class="block text-sm font-medium text-default">Half width</span>
-                <span class="block text-xs text-muted">Sits beside the next half-width ad. Shows at 600 px wide, stacks on phones.</span>
+                <span class="block text-xs text-muted"
+                  >Sits beside the next half-width ad. Shows at 600 px wide, stacks on phones.</span
+                >
               </span>
             </label>
           </div>
           <p class="mt-1.5 text-xs text-muted">
-            Two half-width ads pair up automatically, in the order set below. Give both the same shape so the row lines up.
+            Two half-width ads pair up automatically, in the order set below. Give both the same shape so the row lines
+            up.
           </p>
         </div>
 
@@ -232,5 +251,6 @@ const metadata = { title: id ? 'Edit ad — Admin' : 'New ad — Admin', robots:
   // the server endpoint still accepts PNG/JPEG if conversion falls back.
   import { compressFormImages } from '~/lib/webp-client';
   const form = document.querySelector<HTMLFormElement>('form[enctype="multipart/form-data"]');
-  if (form) compressFormImages(form, ['image']);
+  // Full-width ads render at 1216 CSS px, so allow a true 2x source.
+  if (form) compressFormImages(form, ['image'], { maxWidth: 2432 });
 </script>

@@ -35,6 +35,11 @@ const {
   theme = 'light',
 } = Astro.props;
 
+// Resolve the year at render time. navigation.ts can't interpolate it: that
+// module is evaluated in Workers global scope, where Date.now() is 0, which
+// put "© 1970" in the live footer.
+const footNoteHtml = footNote.replace('%%YEAR%%', String(new Date().getFullYear()));
+
 // Opt-in per client (src/config/business.ts). With the map on, the brand and
 // link columns give up width to it; without it the original 5/7 split stands.
 const showMap = business.showFooterMap === true;
@@ -137,7 +142,7 @@ const showMap = business.showFooterMap === true;
       }
 
       <div class="text-sm mr-4 text-muted dark:text-slate-400">
-        <Fragment set:html={footNote} />
+        <Fragment set:html={footNoteHtml} />
       </div>
     </div>
   </div>
