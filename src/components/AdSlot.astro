@@ -1,60 +1,81 @@
 ---
 /**
- * One homepage ad banner: an image managed in /admin/ads, optionally wrapped
- * in its click-through link. Labelled "Advertisement" so it's never mistaken
- * for editorial (and the label doubles as context for screen readers).
+ * One homepage ad position, holding either a single full-width banner or two
+ * half-width ads side by side (see migration 0006). Labelled "Advertisement"
+ * so it's never mistaken for editorial, and the label doubles as context for
+ * screen readers.
  *
- * The image carries its intrinsic width/height so the browser can reserve the
+ * Each image carries its intrinsic width/height so the browser can reserve the
  * right box before it loads. Without them a lazy-loaded banner sitting between
  * two content sections occupies zero height until it arrives, then pushes
  * everything below it down — a Cumulative Layout Shift hit on the homepage.
  * Rows saved before migration 0005 have no dimensions; those fall back to the
  * old behaviour rather than guessing an aspect ratio and letterboxing the ad.
+ *
+ * A pair stacks on phones: side by side at 343px would leave each ad about
+ * 165px wide, too small to read.
  */
 import type { AdRow } from '~/lib/ads';
 
 export interface Props {
-  ad: AdRow | undefined;
+  /** One ad (full width) or two (50/50). Undefined or empty renders nothing. */
+  ads: (AdRow | undefined)[] | undefined;
 }
-const { ad } = Astro.props;
 
-const hasSize = !!ad && ad.image_width > 0 && ad.image_height > 0;
-const sizeAttrs = hasSize ? { width: ad!.image_width, height: ad!.image_height } : {};
+const shown = (Astro.props.ads ?? []).filter((ad): ad is AdRow => !!ad && !!ad.image_key);
+const isPair = shown.length > 1;
+
 // Pinning the ratio in CSS as well as the attributes keeps the reserved box
 // correct once `w-full` overrides the intrinsic width.
-const imgClass = ['w-full h-auto rounded-sm border border-gray-100', hasSize ? 'aspect-(--ad-ratio)' : '']
-  .filter(Boolean)
-  .join(' ');
-const imgStyle = hasSize ? `--ad-ratio: ${ad!.image_width} / ${ad!.image_height}` : undefined;
+function sizing(ad: AdRow) {
+  const known = ad.image_width > 0 && ad.image_height > 0;
+  return {
+    attrs: known ? { width: ad.image_width, height: ad.image_height } : {},
+    className: ['w-full h-auto rounded-sm border border-gray-100', known ? 'aspect-(--ad-ratio)' : '']
+      .filter(Boolean)
+      .join(' '),
+    style: known ? `--ad-ratio: ${ad.image_width} / ${ad.image_height}` : undefined,
+  };
+}
 ---
 
 {
-  ad && ad.image_key && (
-    <section aria-label={`Advertisement: ${ad.label}`} class="px-4 sm:px-6 lg:px-8 py-6 mx-auto max-w-7xl">
-      <p class="text-[0.65rem] uppercase tracking-widest text-muted mb-1.5">Advertisement</p>
-      {ad.link_url ? (
-        <a href={ad.link_url} target="_blank" rel="noopener sponsored">
-          <img
-            src={`/files/${ad.image_key}`}
-            alt={ad.label}
-            class={imgClass}
-            style={imgStyle}
-            loading="lazy"
-            decoding="async"
-            {...sizeAttrs}
-          />
-        </a>
-      ) : (
-        <img
-          src={`/files/${ad.image_key}`}
-          alt={ad.label}
-          class={imgClass}
-          style={imgStyle}
-          loading="lazy"
-          decoding="async"
-          {...sizeAttrs}
-        />
-      )}
+  shown.length > 0 && (
+    <section
+      aria-label={isPair ? 'Advertisements' : `Advertisement: ${shown[0].label}`}
+      class="px-4 sm:px-6 lg:px-8 py-6 mx-auto max-w-7xl"
+    >
+      <p class="text-[0.65rem] uppercase tracking-widest text-muted mb-1.5">
+        {isPair ? 'Advertisements' : 'Advertisement'}
+      </p>
+      <div class:list={['grid gap-4', isPair && 'sm:grid-cols-2']}>
+        {shown.map((ad) => {
+          const size = sizing(ad);
+          return ad.link_url ? (
+            <a href={ad.link_url} target="_blank" rel="noopener sponsored" aria-label={`Advertisement: ${ad.label}`}>
+              <img
+                src={`/files/${ad.image_key}`}
+                alt={ad.label}
+                class={size.className}
+                style={size.style}
+                loading="lazy"
+                decoding="async"
+                {...size.attrs}
+              />
+            </a>
+          ) : (
+            <img
+              src={`/files/${ad.image_key}`}
+              alt={ad.label}
+              class={size.className}
+              style={size.style}
+              loading="lazy"
+              decoding="async"
+              {...size.attrs}
+            />
+          );
+        })}
+      </div>
     </section>
   )
 }

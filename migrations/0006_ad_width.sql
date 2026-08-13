@@ -1,0 +1,11 @@
+-- Let an ad occupy either the whole slot or half of it.
+--
+-- The homepage had two fixed full-bleed banner slots. Editors also want to run
+-- two smaller ads beside each other, which at 1216px of container gives each
+-- advertiser roughly 600px — a much friendlier shape than a 6:1 strip, and it
+-- lets two sponsors share one position.
+--
+-- 'full' keeps the existing behaviour and is the default, so every ad already
+-- in the table is unaffected. Consecutive 'half' ads are paired up by the
+-- homepage; a 'half' with no partner simply renders at half width.
+ALTER TABLE ads ADD COLUMN width TEXT NOT NULL DEFAULT 'full';

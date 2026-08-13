@@ -15,7 +15,14 @@ export interface AdRow {
   /** Intrinsic size of the uploaded image; 0 when unknown (see migration 0005). */
   image_width: number;
   image_height: number;
+  /** 'full' spans the slot; 'half' pairs up with the next 'half' ad. */
+  width: AdWidth;
 }
+
+export type AdWidth = 'full' | 'half';
+
+/** Narrow an arbitrary stored string to a known width, defaulting to full. */
+export const asAdWidth = (value: string | undefined | null): AdWidth => (value === 'half' ? 'half' : 'full');
 
 export async function getAllAds(db: D1Database): Promise<AdRow[]> {
   const { results } = await db.prepare('SELECT * FROM ads ORDER BY sort_order ASC, id ASC').all<AdRow>();
@@ -43,14 +50,15 @@ export interface AdInput {
   /** Measured in the browser at upload time; 0 leaves the stored value alone. */
   imageWidth: number;
   imageHeight: number;
+  width: AdWidth;
 }
 
 export async function createAd(db: D1Database, a: AdInput): Promise<number> {
   const res = await db
     .prepare(
-      'INSERT INTO ads (label, image_key, link_url, active, sort_order, image_width, image_height) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO ads (label, image_key, link_url, active, sort_order, image_width, image_height, width) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     )
-    .bind(a.label, a.imageKey, a.linkUrl, a.active ? 1 : 0, a.sortOrder, a.imageWidth, a.imageHeight)
+    .bind(a.label, a.imageKey, a.linkUrl, a.active ? 1 : 0, a.sortOrder, a.imageWidth, a.imageHeight, a.width)
     .run();
   return Number(res.meta.last_row_id);
 }
@@ -61,7 +69,7 @@ export async function updateAd(db: D1Database, id: number, a: AdInput): Promise<
   await db
     .prepare(
       `UPDATE ads
-          SET label = ?, image_key = ?, link_url = ?, active = ?, sort_order = ?,
+          SET label = ?, image_key = ?, link_url = ?, active = ?, sort_order = ?, width = ?,
               image_width = CASE WHEN ? > 0 THEN ? ELSE image_width END,
               image_height = CASE WHEN ? > 0 THEN ? ELSE image_height END
         WHERE id = ?`
@@ -72,6 +80,7 @@ export async function updateAd(db: D1Database, id: number, a: AdInput): Promise<
       a.linkUrl,
       a.active ? 1 : 0,
       a.sortOrder,
+      a.width,
       a.imageWidth,
       a.imageWidth,
       a.imageHeight,
@@ -83,4 +92,23 @@ export async function updateAd(db: D1Database, id: number, a: AdInput): Promise<
 
 export async function deleteAd(db: D1Database, id: number): Promise<void> {
   await db.prepare('DELETE FROM ads WHERE id = ?').bind(id).run();
+}
+
+/**
+ * Group ordered ads into slots for rendering: a 'full' ad occupies a slot on
+ * its own, and two consecutive 'half' ads share one. A trailing unpaired
+ * 'half' still gets its own slot (rendered at half width) rather than being
+ * dropped — an editor mid-way through setting up a pair should still see it.
+ */
+export function groupAdsIntoSlots(ads: AdRow[]): AdRow[][] {
+  const slots: AdRow[][] = [];
+  for (let i = 0; i < ads.length; i++) {
+    if (ads[i].width === 'half' && ads[i + 1]?.width === 'half') {
+      slots.push([ads[i], ads[i + 1]]);
+      i++;
+    } else {
+      slots.push([ads[i]]);
+    }
+  }
+  return slots;
 }

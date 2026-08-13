@@ -43,6 +43,7 @@ if (Astro.request.method === 'POST' && db) {
         // stored dimensions straight back through.
         imageWidth: ad.image_width,
         imageHeight: ad.image_height,
+        width: ad.width,
       });
     }
     return Astro.redirect('/admin/ads');

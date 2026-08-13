@@ -6,14 +6,14 @@ import AdminShell from '~/components/AdminShell.astro';
 import { Icon } from 'astro-icon/components';
 import { isAdmin, adminRedirect } from '~/lib/admin';
 import { getDb, getUploads } from '~/lib/auth';
-import { createAd, updateAd, getAdById } from '~/lib/ads';
+import { createAd, updateAd, getAdById, asAdWidth } from '~/lib/ads';
 
 if (!(await isAdmin(Astro))) return Astro.redirect(adminRedirect(Astro));
 
 const db = await getDb();
 const id = Number(Astro.url.searchParams.get('id') ?? 0);
 
-let form = { label: '', link_url: '', image_key: '', active: 1, sort_order: '0' };
+let form = { label: '', link_url: '', image_key: '', active: 1, sort_order: '0', width: 'full' as 'full' | 'half' };
 let error = '';
 
 if (id && db) {
@@ -25,6 +25,7 @@ if (id && db) {
     image_key: existing.image_key,
     active: existing.active,
     sort_order: String(existing.sort_order),
+    width: asAdWidth(existing.width),
   };
 }
 
@@ -38,10 +39,18 @@ if (Astro.request.method === 'POST' && db) {
   // Measured in the browser before submit (see webp-client.ts) because the
   // Worker has no image decoder. 0 when JavaScript is off or the image wasn't
   // replaced — updateAd treats that as "keep what's stored".
+  const width = asAdWidth(String(fd.get('width') ?? 'full'));
   const imageWidth = Math.max(0, Math.trunc(Number(fd.get('image_width') ?? 0)) || 0);
   const imageHeight = Math.max(0, Math.trunc(Number(fd.get('image_height') ?? 0)) || 0);
 
-  form = { label, link_url: linkUrl, image_key: form.image_key, active: active ? 1 : 0, sort_order: String(sortOrder) };
+  form = {
+    label,
+    link_url: linkUrl,
+    image_key: form.image_key,
+    active: active ? 1 : 0,
+    sort_order: String(sortOrder),
+    width,
+  };
 
   const isFile = (f: unknown): f is File => f instanceof File && f.size > 0;
 
@@ -64,7 +73,7 @@ if (Astro.request.method === 'POST' && db) {
       await uploads.put(imageKey, imageFile.stream(), { httpMetadata: { contentType: type } });
     }
 
-    const payload = { label, imageKey, linkUrl, active, sortOrder, imageWidth, imageHeight };
+    const payload = { label, imageKey, linkUrl, active, sortOrder, imageWidth, imageHeight, width };
     if (id) await updateAd(db, id, payload);
     else await createAd(db, payload);
     return Astro.redirect('/admin/ads?saved=1');
@@ -143,9 +152,32 @@ const metadata = { title: id ? 'Edit ad — Admin' : 'New ad — Admin', robots:
           <input type="hidden" name="image_width" value="0" />
           <input type="hidden" name="image_height" value="0" />
           <p class="mt-1.5 text-xs text-muted">
-            Wide banner shapes work best on the homepage. The slot is 1216 px across on a desktop, so upload at
-            <strong>2432 × 400 px</strong> for a sharp banner. Very wide shapes get short on phones, so avoid anything thinner
-            than about 6:1.
+            Recommended size depends on the layout chosen below:
+            <strong>full width 2432 × 608 px</strong>, <strong>half width 1200 × 800 px</strong>. Other shapes still work,
+            the ad just gets taller or shorter to suit.
+          </p>
+        </div>
+
+        <div>
+          <span class={labelClass}>Layout</span>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="flex items-start gap-3 rounded-xl border border-gray-300 px-4 py-3 cursor-pointer hover:border-primary transition-colors">
+              <input type="radio" name="width" value="full" checked={form.width === 'full'} class="mt-0.5 h-4 w-4 accent-[var(--aw-color-primary)]" />
+              <span>
+                <span class="block text-sm font-medium text-default">Full width</span>
+                <span class="block text-xs text-muted">Spans the page on its own. Shows at 1216 px wide.</span>
+              </span>
+            </label>
+            <label class="flex items-start gap-3 rounded-xl border border-gray-300 px-4 py-3 cursor-pointer hover:border-primary transition-colors">
+              <input type="radio" name="width" value="half" checked={form.width === 'half'} class="mt-0.5 h-4 w-4 accent-[var(--aw-color-primary)]" />
+              <span>
+                <span class="block text-sm font-medium text-default">Half width</span>
+                <span class="block text-xs text-muted">Sits beside the next half-width ad. Shows at 600 px wide, stacks on phones.</span>
+              </span>
+            </label>
+          </div>
+          <p class="mt-1.5 text-xs text-muted">
+            Two half-width ads pair up automatically, in the order set below. Give both the same shape so the row lines up.
           </p>
         </div>
 

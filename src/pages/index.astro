@@ -17,7 +17,7 @@ import {
   parseTaxonomies,
   type PostRow,
 } from '~/lib/posts';
-import { getActiveAds, type AdRow } from '~/lib/ads';
+import { getActiveAds, groupAdsIntoSlots, type AdRow } from '~/lib/ads';
 import { getSetting, HOMEPAGE_ADS_KEY, HOMEPAGE_CATEGORIES_KEY } from '~/lib/settings';
 import { rowToPost } from '~/lib/post-adapter';
 
@@ -28,7 +28,7 @@ const db = await getDb();
 
 let hero: PostRow[] = [];
 let more: PostRow[] = [];
-let ads: AdRow[] = [];
+let adSlots: AdRow[][] = [];
 let categoryBlocks: { slug: string; title: string; post: PostRow }[] = [];
 
 if (db) {
@@ -41,7 +41,9 @@ if (db) {
 
   // The master switch in /admin/ads hides both slots at once; individual ads
   // keep their own active flags for when it's switched back on.
-  if (await getSetting(db, HOMEPAGE_ADS_KEY, true)) ads = await getActiveAds(db, 2);
+  // Up to 4 rows so the two positions can each hold a 50/50 pair; the ads are
+  // then grouped into slots (a full-width ad alone, two half-width side by side).
+  if (await getSetting(db, HOMEPAGE_ADS_KEY, true)) adSlots = groupAdsIntoSlots(await getActiveAds(db, 4));
 
   const allCats = await getTaxonomyCounts(db, 'categories');
   const chosen: string[] = await getSetting(db, HOMEPAGE_CATEGORIES_KEY, []);
@@ -180,7 +182,7 @@ const metadata = {
     }
   </section>
 
-  <AdSlot ad={ads[0]} />
+  <AdSlot ads={adSlots[0]} />
 
   {/* ── More stories ─────────────────────────────────────────────────── */}
   {
@@ -260,7 +262,7 @@ const metadata = {
     )
   }
 
-  <AdSlot ad={ads[1]} />
+  <AdSlot ads={adSlots[1]} />
 
   {/* ── Magazine teaser ──────────────────────────────────────────────── */}
   <section class="px-4 sm:px-6 lg:px-8 py-12 mx-auto max-w-7xl border-t border-gray-100">
