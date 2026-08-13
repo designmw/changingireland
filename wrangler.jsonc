@@ -25,6 +25,16 @@
   "assets": {
     "html_handling": "drop-trailing-slash",
   },
+  // Production domains. Declaring them as custom_domain routes makes wrangler
+  // create the Cloudflare Custom Domain (and the proxied DNS record) on deploy,
+  // replacing the A record that pointed at the old WordPress origin.
+  "routes": [
+    { "pattern": "changingireland.ie", "custom_domain": true },
+    { "pattern": "www.changingireland.ie", "custom_domain": true },
+  ],
+  // Declaring `routes` otherwise turns the <name>.workers.dev URL off, which is
+  // still wanted here as a staging address independent of the live domain.
+  "workers_dev": true,
   // Posts, users/sessions, and magazines all live in D1 so the editors can
   // publish from /admin without a rebuild (same system as the iscphm site,
   // with its own database).

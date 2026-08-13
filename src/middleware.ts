@@ -58,12 +58,31 @@ const CSP = [
 ].join('; ');
 
 function withSecurityHeaders(response: Response): Response {
-  for (const [name, value] of Object.entries(SECURITY_HEADERS)) response.headers.set(name, value);
+  // Some responses arrive with an immutable headers guard — notably anything
+  // built by `Response.redirect()`. Calling .set() on those throws
+  // "Can't modify immutable headers", and Astro swallows the exception into a
+  // bare 404, so the redirect silently becomes a dead end. Rebuild the
+  // response in that case; `new Response(body, init)` gives mutable headers.
+  //
+  // Worth keeping: this is easy to reintroduce, because it only shows up on
+  // the redirect paths, and only once a header is actually set here.
+  let out = response;
+  try {
+    out.headers.set('X-Content-Type-Options', SECURITY_HEADERS['X-Content-Type-Options']);
+  } catch {
+    out = new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: new Headers(response.headers),
+    });
+  }
+
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) out.headers.set(name, value);
   // Skipped in `astro dev`: Vite's HMR client uses inline eval and websockets
   // that a policy this tight would block, and dev is not the thing being
   // protected.
-  if (!import.meta.env.DEV) response.headers.set('Content-Security-Policy', CSP);
-  return response;
+  if (!import.meta.env.DEV) out.headers.set('Content-Security-Policy', CSP);
+  return out;
 }
 
 /**

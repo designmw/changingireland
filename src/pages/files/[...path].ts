@@ -46,7 +46,13 @@ export const GET: APIRoute = async ({ params, request }) => {
     // confirmed complete.
     const host = new URL(request.url).hostname;
     if (key.startsWith('uploads/') && host !== 'changingireland.ie' && host !== 'www.changingireland.ie') {
-      return Response.redirect(`https://changingireland.ie/wp-content/${key}`, 302);
+      // Built by hand rather than with Response.redirect(), which returns a
+      // response whose headers are immutable — the security-header middleware
+      // then can't stamp it. See the note in src/middleware.ts.
+      return new Response(null, {
+        status: 302,
+        headers: { Location: `https://changingireland.ie/wp-content/${key}` },
+      });
     }
     return new Response(null, { status: 404 });
   }
