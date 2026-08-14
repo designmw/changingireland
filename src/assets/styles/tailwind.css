@@ -176,6 +176,16 @@
   }
 }
 
+/* Laptop and desktop windows can still use the hamburger layout below the
+   90rem full-navigation breakpoint. On devices with a real pointer, retain
+   conventional hover dropdowns; touch screens continue to use tap toggles. */
+@media (hover: hover) and (pointer: fine) and (max-width: 89.999rem) {
+  .dropdown:hover .dropdown-menu,
+  .dropdown:focus-within .dropdown-menu {
+    display: block;
+  }
+}
+
 @media (min-width: 90rem) {
   .dropdown:focus .dropdown-menu,
   .dropdown:focus-within .dropdown-menu,

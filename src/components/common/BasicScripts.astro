@@ -139,12 +139,12 @@ import { UI } from 'astrowind:config';
         dropdown.addEventListener('focusin', open);
         dropdown.addEventListener('mouseenter', open);
         dropdown.addEventListener('mouseleave', () => {
-          if (!dropdown.contains(document.activeElement)) close();
+          if (!dropdown.contains(document.activeElement) && !dropdown.classList.contains('is-open')) close();
         });
         dropdown.addEventListener('focusout', () => {
           // focusout fires before focus lands, so check on the next tick
           setTimeout(() => {
-            if (!dropdown.contains(document.activeElement)) close();
+            if (!dropdown.contains(document.activeElement) && !dropdown.classList.contains('is-open')) close();
           }, 0);
         });
         dropdown.addEventListener('keydown', (e) => {
