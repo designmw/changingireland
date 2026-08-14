@@ -31,6 +31,16 @@ import type { Post } from '~/types';
 // advertise, …) share this URL space and are checked when no post matches.
 // about-us has its own bespoke page (src/pages/about-us.astro).
 const slug = (Astro.params.slug ?? '').toString();
+const usesDirectoryLayout = [
+  'support-for-individuals',
+  'advice-for-groups',
+  'volunteering',
+  'whats-on',
+  'the-community-sector',
+  'advertise',
+  'studying',
+  'community-development',
+].includes(slug.toLowerCase());
 const db = await getDb();
 if (!db || !slug) return new Response(null, { status: 404 });
 
@@ -209,50 +219,97 @@ if (isPost) {
     ) : (
       <>
         <PageHeader title={wpPage!.title} tagline={wpHeader!.tagline} subtitle={wpHeader!.subtitle} />
-        <section class="px-4 sm:px-6 lg:px-8 py-10 lg:py-14 mx-auto max-w-7xl">
+        <section
+          class:list={[
+            'px-4 sm:px-6 lg:px-8 mx-auto max-w-7xl',
+            usesDirectoryLayout ? 'directory-page py-12 lg:py-20' : 'py-10 lg:py-14',
+          ]}
+        >
           {/* Every ported page uses the same sidebar grid, even with only one
               or two sections — a variable content width read as inconsistent. */}
-          <div class="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-12 lg:items-start">
+          <div
+            class:list={[!usesDirectoryLayout && 'lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-12 lg:items-start']}
+          >
             {wpSections.length > 0 && (
-              <nav aria-label="On this page" class="mb-8 lg:mb-0 lg:sticky lg:top-24">
-                <details class="lg:hidden rounded-xl border border-gray-200 bg-gray-50 px-4 py-3" open={false}>
-                  <summary class="text-sm font-bold text-heading cursor-pointer">On this page</summary>
-                  <ul class="mt-3 space-y-1.5 list-none m-0 p-0">
-                    {wpSections.map((s) => (
-                      <li>
-                        <a href={`#${s.id}`} class="block text-sm text-gray-700 hover:text-primary py-0.5">
-                          {s.title}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-                <div class="hidden lg:block">
-                  <p class="text-xs font-bold uppercase tracking-wider text-muted mb-3">On this page</p>
-                  <ul class="space-y-1 list-none m-0 p-0 border-l-2 border-gray-200">
-                    {wpSections.map((s) => (
-                      <li>
-                        <a
-                          href={`#${s.id}`}
-                          class="block text-sm text-gray-700 hover:text-primary hover:border-primary border-l-2 border-transparent -ml-0.5 pl-3.5 py-1 leading-snug transition-colors"
-                        >
-                          {s.title}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+              <nav
+                aria-label="On this page"
+                class:list={[
+                  usesDirectoryLayout ? 'directory-index mb-14 lg:mb-20' : 'mb-8 lg:mb-0 lg:sticky lg:top-24',
+                ]}
+              >
+                {usesDirectoryLayout ? (
+                  <div
+                    id="page-directory"
+                    class="scroll-mt-24 rounded-3xl border border-gray-200 bg-gray-50/80 p-6 sm:p-8 lg:p-10"
+                  >
+                    <div class="max-w-2xl mb-7">
+                      <p class="text-xs font-bold uppercase tracking-[0.16em] text-primary mb-2">Page directory</p>
+                      <h2 class="font-heading text-2xl sm:text-3xl font-extrabold text-heading mb-2">On this page</h2>
+                      <p class="text-muted m-0">Jump directly to the section you need.</p>
+                    </div>
+                    <ol class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 list-none m-0 p-0">
+                      {wpSections.map((s) => (
+                        <li>
+                          <a
+                            href={`#${s.id}`}
+                            class="group flex h-full items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-heading shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+                          >
+                            <span class="font-heading text-sm font-bold leading-snug group-hover:text-primary">
+                              {s.title}
+                            </span>
+                            <span class="ml-auto text-primary" aria-hidden="true">
+                              ↓
+                            </span>
+                          </a>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : (
+                  <>
+                    <details class="lg:hidden rounded-xl border border-gray-200 bg-gray-50 px-4 py-3" open={false}>
+                      <summary class="text-sm font-bold text-heading cursor-pointer">On this page</summary>
+                      <ul class="mt-3 space-y-1.5 list-none m-0 p-0">
+                        {wpSections.map((s) => (
+                          <li>
+                            <a href={`#${s.id}`} class="block text-sm text-gray-700 hover:text-primary py-0.5">
+                              {s.title}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                    <div class="hidden lg:block">
+                      <p class="text-xs font-bold uppercase tracking-wider text-muted mb-3">On this page</p>
+                      <ul class="space-y-1 list-none m-0 p-0 border-l-2 border-gray-200">
+                        {wpSections.map((s) => (
+                          <li>
+                            <a
+                              href={`#${s.id}`}
+                              class="block text-sm text-gray-700 hover:text-primary hover:border-primary border-l-2 border-transparent -ml-0.5 pl-3.5 py-1 leading-snug transition-colors"
+                            >
+                              {s.title}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </>
+                )}
               </nav>
             )}
             <div
-              class="wp-prose prose max-w-4xl prose-headings:font-heading prose-headings:text-heading prose-a:text-primary prose-img:rounded-xl
+              class:list={[
+                `wp-prose prose prose-headings:font-heading prose-headings:text-heading prose-a:text-primary prose-img:rounded-xl
                 prose-h2:font-extrabold prose-h2:text-2xl md:prose-h2:text-3xl prose-h2:scroll-mt-24
                 prose-h3:font-extrabold prose-h3:text-xl
                 prose-h4:text-xs prose-h4:font-bold prose-h4:uppercase prose-h4:tracking-wider prose-h4:text-primary prose-h4:mb-1
                 marker:text-primary
-                [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:h-auto [&_iframe]:rounded-md"
+                [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:h-auto [&_iframe]:rounded-md`,
+                usesDirectoryLayout ? 'directory-prose max-w-none' : 'max-w-4xl',
+              ]}
             >
-              <Fragment set:html={renderWpBody(wpHeader!.body)} />
+              <Fragment set:html={renderWpBody(wpHeader!.body, { wrapSections: usesDirectoryLayout })} />
             </div>
           </div>
         </section>
@@ -268,6 +325,94 @@ if (isPost) {
     utilities. Hence a global rule keyed off the .wp-prose wrapper. */
 }
 <style is:global>
+  .wp-prose.directory-prose .ci-content-section {
+    margin: 0 0 4rem;
+    padding: clamp(1.5rem, 3vw, 3rem);
+    border: 1px solid rgb(229 231 235);
+    border-radius: 1.5rem;
+    background: #fff;
+    box-shadow: 0 12px 35px rgb(15 23 42 / 0.055);
+  }
+  .wp-prose.directory-prose .ci-content-section > h2:first-child {
+    margin-top: 0;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid rgb(229 231 235);
+  }
+  .wp-prose.directory-prose .ci-content-section > h2:first-child::after {
+    display: none;
+  }
+  .wp-prose.directory-prose .ci-content-section > h2:first-child + * {
+    margin-top: 1.75rem;
+  }
+  .wp-prose.directory-prose .ci-back-to-top {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 2rem;
+    padding: 0.65rem 1rem;
+    border: 1px solid rgb(209 213 219);
+    border-radius: 9999px;
+    background: #fff;
+    color: var(--aw-color-text-heading);
+    font-family: var(--aw-font-heading);
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition:
+      border-color 150ms ease,
+      color 150ms ease,
+      transform 150ms ease;
+  }
+  .wp-prose.directory-prose .ci-back-to-top:hover {
+    color: var(--aw-color-primary);
+    border-color: rgb(132 204 22 / 0.65);
+    transform: translateY(-1px);
+  }
+  .wp-prose.directory-prose .ci-cards {
+    gap: 1.25rem;
+    margin-top: 2rem;
+  }
+  .wp-prose.directory-prose .ci-card:not(:has(.ci-card-media)) {
+    padding: 1.5rem;
+    border: 1px solid rgb(229 231 235);
+    border-radius: 1rem;
+    background: rgb(249 250 251 / 0.7);
+  }
+  .wp-prose.directory-prose .ci-card:not(:has(.ci-card-media)):hover {
+    border-color: rgb(132 204 22 / 0.55);
+    background: #fff;
+  }
+  .wp-prose.directory-prose .ci-card:has(.ci-card-media) {
+    padding: 1.25rem;
+    box-shadow: none;
+  }
+  .wp-prose.directory-prose .ci-card a:not(:has(img)) {
+    font-weight: 700;
+    text-underline-offset: 0.2em;
+  }
+  .wp-prose.directory-prose .ci-split {
+    gap: clamp(1.75rem, 4vw, 3.5rem);
+    margin-bottom: 0;
+    align-items: center;
+  }
+  .wp-prose.directory-prose ul:not(.ci-cards ul) li::marker {
+    color: var(--aw-color-primary);
+  }
+  @media (min-width: 768px) {
+    .wp-prose.directory-prose .ci-cards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .wp-prose.directory-prose .ci-card:has(.ci-card-media) {
+      grid-column: 1 / -1;
+    }
+  }
+  @media (max-width: 767px) {
+    .wp-prose.directory-prose .ci-content-section {
+      margin-bottom: 2rem;
+      border-radius: 1.25rem;
+    }
+  }
   .wp-prose h2 {
     display: flex;
     align-items: center;

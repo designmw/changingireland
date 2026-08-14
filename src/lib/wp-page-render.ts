@@ -151,8 +151,12 @@ const innerP = (html: string) => html.replace(/^<p>/, '').replace(/<\/p>$/, '');
  * so the rest stay in the flow.
  */
 function splitCardMedia(body: Token[]): { media: string | null; rest: Token[] } {
-  // Match any image, optionally wrapped in a link
-  const imgPattern = /((?:<a [^>]*>\s*)?<img\b[^>]*>(?:\s*<\/a>)?)/;
+  // Treat a link as image media only when the image is its entire contents.
+  // Some exports put an image after CTA text inside the same link. Consuming
+  // that link's closing tag while leaving its opening tag behind makes every
+  // following card look linked and green.
+  const linkedImagePattern = /<a [^>]*>\s*<img\b[^>]*>\s*<\/a>/;
+  const imagePattern = /<img\b[^>]*>/;
 
   for (let i = 0; i < body.length; i++) {
     const token = body[i];
@@ -165,12 +169,15 @@ function splitCardMedia(body: Token[]): { media: string | null; rest: Token[] } 
     }
 
     // Find the first image anywhere in the paragraph
-    const match = html.match(imgPattern);
+    const match = html.match(linkedImagePattern) ?? html.match(imagePattern);
     if (!match) continue;
 
     // Extract the image
-    const imgHtml = match[1];
-    const remainder = html.replace(match[0], '').replace(/^\s*<p>\s*<\/p>\s*$/, '').trim();
+    const imgHtml = match[0];
+    const remainder = html
+      .replace(match[0], '')
+      .replace(/^\s*<p>\s*<\/p>\s*$/, '')
+      .trim();
 
     if (!remainder || remainder === '<p></p>') {
       // The paragraph held only the image — drop the whole token
@@ -354,7 +361,11 @@ function externalLinksToNewTab(html: string): string {
   });
 }
 
-export function renderWpBody(html: string): string {
+interface RenderWpBodyOptions {
+  wrapSections?: boolean;
+}
+
+export function renderWpBody(html: string, options: RenderWpBodyOptions = {}): string {
   const tokens = pairStats(tokenize(html));
   const sections: { heading: string | null; tokens: Token[] }[] = [{ heading: null, tokens: [] }];
   for (const t of tokens) {
@@ -365,7 +376,12 @@ export function renderWpBody(html: string): string {
     sizeImages(
       sections
         .filter((s) => s.heading !== null || s.tokens.length > 0)
-        .map((s) => renderSection(s.heading, s.tokens))
+        .map((s) => {
+          const rendered = renderSection(s.heading, s.tokens);
+          if (!options.wrapSections || s.heading === null) return rendered;
+          const id = s.heading.match(/\bid="([^"]+)"/)?.[1];
+          return `<section${id ? ` data-section="${id}"` : ''} class="ci-content-section">${rendered}<a class="ci-back-to-top" href="#page-directory">Back to top <span aria-hidden="true">↑</span></a></section>`;
+        })
         .join('')
     )
   );
