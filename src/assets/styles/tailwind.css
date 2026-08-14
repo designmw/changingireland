@@ -156,6 +156,10 @@
   color: var(--aw-color-primary);
 }
 
+.dropdown-menu {
+  display: none;
+}
+
 .dropdown:focus .dropdown-menu,
 .dropdown:focus-within .dropdown-menu,
 .dropdown:hover .dropdown-menu {

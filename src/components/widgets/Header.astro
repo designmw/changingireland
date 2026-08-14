@@ -190,20 +190,35 @@ const megaLinkClass =
               {subLinks?.length || mega ? (
                 <>
                   {/* aria-expanded kept in sync by BasicScripts.astro */}
-                  <button
-                    type="button"
-                    class="hover:text-link dark:hover:text-white px-2 py-3 flex items-center whitespace-nowrap"
-                    aria-expanded="false"
-                    aria-controls={`dropdown-menu-${index}`}
-                    data-aw-dropdown-toggle
-                  >
-                    {text}
-                    <Icon
-                      name="tabler:chevron-down"
-                      class="w-3.5 h-3.5 ml-0.5 hidden min-[90rem]:inline"
-                      aria-hidden="true"
-                    />
-                  </button>
+                  <div class="flex items-center">
+                    {href ? (
+                      <a
+                        class:list={[
+                          'hover:text-link dark:hover:text-white px-2 py-3 flex items-center whitespace-nowrap',
+                          { 'aw-link-active': href === currentPath },
+                        ]}
+                        href={href}
+                      >
+                        {text}
+                      </a>
+                    ) : (
+                      <span class="px-2 py-3 flex items-center whitespace-nowrap">{text}</span>
+                    )}
+                    <button
+                      type="button"
+                      class="hover:text-link dark:hover:text-white py-3 pr-2 flex items-center"
+                      aria-expanded="false"
+                      aria-controls={`dropdown-menu-${index}`}
+                      aria-label={`Toggle ${text} submenu`}
+                      data-aw-dropdown-toggle
+                    >
+                      <Icon
+                        name="tabler:chevron-down"
+                        class="w-3.5 h-3.5 hidden min-[90rem]:inline"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </div>
 
                   {mega === 'news' && (subLinks?.length ?? 0) > 0 ? (
                     <div
