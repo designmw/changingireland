@@ -47,7 +47,9 @@ import { UI } from 'astrowind:config';
       let lastKnownScrollPosition = window.scrollY;
       let ticking = true;
 
-      attachEvent('#header nav', 'click', function () {
+      const mobileHeader = window.matchMedia('(max-width: 89.999rem)');
+
+      const closeMobileMenu = function () {
         document.querySelector('[data-aw-toggle-menu]')?.classList.remove('expanded');
         document.body.classList.remove('overflow-hidden');
         document.getElementById('header')?.classList.remove('h-screen');
@@ -55,19 +57,36 @@ import { UI } from 'astrowind:config';
         document.getElementById('header')?.classList.remove('bg-page');
         document.querySelector('#header nav')?.classList.add('hidden');
         document.querySelector('#header > div > div:last-child')?.classList.add('hidden');
-      });
+        document.querySelectorAll('.dropdown.is-open').forEach((dropdown) => {
+          dropdown.classList.remove('is-open');
+          syncDropdown(dropdown, false);
+        });
+      };
 
-      attachEvent('[data-aw-toggle-menu]', 'click', function (_, elem) {
-        elem.classList.toggle('expanded');
-        document.body.classList.toggle('overflow-hidden');
-        document.getElementById('header')?.classList.toggle('h-screen');
-        document.getElementById('header')?.classList.toggle('expanded');
-        document.getElementById('header')?.classList.toggle('bg-page');
-        document.querySelector('#header nav')?.classList.toggle('hidden');
-        document.querySelector('#header > div > div:last-child')?.classList.toggle('hidden');
-        // WCAG 4.1.2 — the hamburger must report its own state.
-        elem.setAttribute('aria-expanded', elem.classList.contains('expanded') ? 'true' : 'false');
-      });
+      const headerNav = document.querySelector('#header nav');
+      if (headerNav && !headerNav.dataset.awMobileNavBound) {
+        headerNav.dataset.awMobileNavBound = 'true';
+        headerNav.addEventListener('click', function (event) {
+          if (!mobileHeader.matches || !event.target.closest('a')) return;
+          closeMobileMenu();
+        });
+      }
+
+      const menuToggle = document.querySelector('[data-aw-toggle-menu]');
+      if (menuToggle && !menuToggle.dataset.awMenuBound) {
+        menuToggle.dataset.awMenuBound = 'true';
+        menuToggle.addEventListener('click', function () {
+          menuToggle.classList.toggle('expanded');
+          document.body.classList.toggle('overflow-hidden');
+          document.getElementById('header')?.classList.toggle('h-screen');
+          document.getElementById('header')?.classList.toggle('expanded');
+          document.getElementById('header')?.classList.toggle('bg-page');
+          document.querySelector('#header nav')?.classList.toggle('hidden');
+          document.querySelector('#header > div > div:last-child')?.classList.toggle('hidden');
+          // WCAG 4.1.2 — the hamburger must report its own state.
+          menuToggle.setAttribute('aria-expanded', menuToggle.classList.contains('expanded') ? 'true' : 'false');
+        });
+      }
 
       // Escape closes the mobile menu and returns focus to the toggle.
       // Bound once — `document` survives view transitions, so re-binding on
@@ -94,6 +113,9 @@ import { UI } from 'astrowind:config';
       };
 
       document.querySelectorAll('.dropdown').forEach((dropdown) => {
+        if (dropdown.dataset.awDropdownBound) return;
+        dropdown.dataset.awDropdownBound = 'true';
+        const toggle = dropdown.querySelector('[data-aw-dropdown-toggle]');
         const open = () => {
           dropdown.classList.remove('is-collapsed');
           syncDropdown(dropdown, true);
@@ -102,6 +124,18 @@ import { UI } from 'astrowind:config';
           dropdown.classList.remove('is-collapsed');
           syncDropdown(dropdown, false);
         };
+        toggle?.addEventListener('click', (event) => {
+          if (!mobileHeader.matches) return;
+          event.preventDefault();
+          event.stopPropagation();
+          const shouldOpen = !dropdown.classList.contains('is-open');
+          document.querySelectorAll('.dropdown.is-open').forEach((item) => {
+            item.classList.remove('is-open');
+            syncDropdown(item, false);
+          });
+          dropdown.classList.toggle('is-open', shouldOpen);
+          syncDropdown(dropdown, shouldOpen);
+        });
         dropdown.addEventListener('focusin', open);
         dropdown.addEventListener('mouseenter', open);
         dropdown.addEventListener('mouseleave', () => {
@@ -166,16 +200,10 @@ import { UI } from 'astrowind:config';
         newlink.click();
       });
 
-      const screenSize = window.matchMedia('(max-width: 767px)');
-      screenSize.addEventListener('change', function () {
-        document.querySelector('[data-aw-toggle-menu]')?.classList.remove('expanded');
-        document.body.classList.remove('overflow-hidden');
-        document.getElementById('header')?.classList.remove('h-screen');
-        document.getElementById('header')?.classList.remove('expanded');
-        document.getElementById('header')?.classList.remove('bg-page');
-        document.querySelector('#header nav')?.classList.add('hidden');
-        document.querySelector('#header > div > div:last-child')?.classList.add('hidden');
-      });
+      if (!document.body.dataset.awHeaderBreakpointBound) {
+        document.body.dataset.awHeaderBreakpointBound = 'true';
+        mobileHeader.addEventListener('change', closeMobileMenu);
+      }
 
       function applyHeaderStylesOnScroll() {
         const header = document.querySelector('#header[data-aw-sticky-header]');

@@ -190,7 +190,7 @@ const megaLinkClass =
               {subLinks?.length || mega ? (
                 <>
                   {/* aria-expanded kept in sync by BasicScripts.astro */}
-                  <div class="flex items-center">
+                  <div class="flex w-full items-center">
                     {href ? (
                       <a
                         class:list={[
@@ -206,7 +206,7 @@ const megaLinkClass =
                     )}
                     <button
                       type="button"
-                      class="hover:text-link dark:hover:text-white py-3 pr-2 flex items-center"
+                      class="ml-auto min-[90rem]:ml-0 flex items-center rounded-md px-3 min-[90rem]:px-1 py-3 hover:text-link dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                       aria-expanded="false"
                       aria-controls={`dropdown-menu-${index}`}
                       aria-label={`Toggle ${text} submenu`}
@@ -214,7 +214,7 @@ const megaLinkClass =
                     >
                       <Icon
                         name="tabler:chevron-down"
-                        class="w-3.5 h-3.5 hidden min-[90rem]:inline"
+                        class="w-4 h-4 min-[90rem]:w-3.5 min-[90rem]:h-3.5 transition-transform"
                         aria-hidden="true"
                       />
                     </button>

@@ -166,10 +166,22 @@
   display: none;
 }
 
-.dropdown:focus .dropdown-menu,
-.dropdown:focus-within .dropdown-menu,
-.dropdown:hover .dropdown-menu {
-  display: block;
+[data-aw-dropdown-toggle][aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+@media (max-width: 89.999rem) {
+  .dropdown.is-open .dropdown-menu {
+    display: block;
+  }
+}
+
+@media (min-width: 90rem) {
+  .dropdown:focus .dropdown-menu,
+  .dropdown:focus-within .dropdown-menu,
+  .dropdown:hover .dropdown-menu {
+    display: block;
+  }
 }
 
 /*
