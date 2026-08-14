@@ -5,6 +5,7 @@ import Layout from '~/layouts/PageLayout.astro';
 import Grid from '~/components/blog/Grid.astro';
 import GridItem from '~/components/blog/GridItem.astro';
 import AdSlot from '~/components/AdSlot.astro';
+import EditorsPicks from '~/components/widgets/EditorsPicks.astro';
 import NewsMediaOrganizationSchema from '~/components/schema/NewsMediaOrganizationSchema.astro';
 import { getFormattedDate } from '~/utils/utils';
 
@@ -28,16 +29,19 @@ const db = await getDb();
 
 let hero: PostRow[] = [];
 let more: PostRow[] = [];
+let editorsPicks: PostRow[] = [];
 let adSlots: AdRow[][] = [];
 let categoryBlocks: { slug: string; title: string; post: PostRow }[] = [];
 
 if (db) {
-  const featured = await getFeaturedPosts(db, 6);
+  editorsPicks = await getFeaturedPosts(db, 4);
   const latest = await getPublishedPosts(db, 20);
-  const seen = new Set(featured.map((p) => p.id));
-  hero = [...featured, ...latest.filter((p) => !seen.has(p.id))].slice(0, 6);
+  // Hero is the 6 most recent posts (not mixing in featured separately)
+  hero = latest.slice(0, 6);
   const heroIds = new Set(hero.map((p) => p.id));
-  more = latest.filter((p) => !heroIds.has(p.id)).slice(0, 8);
+  // More stories excludes hero posts AND editor's picks
+  const picksIds = new Set(editorsPicks.map((p) => p.id));
+  more = latest.filter((p) => !heroIds.has(p.id) && !picksIds.has(p.id)).slice(0, 8);
 
   // The master switch in /admin/ads hides both slots at once; individual ads
   // keep their own active flags for when it's switched back on.
@@ -183,6 +187,9 @@ const metadata = {
   </section>
 
   <AdSlot ads={adSlots[0]} />
+
+  {/* ── Editor's Picks (black background section) ───────────────────── */}
+  {editorsPicks.length > 0 && <EditorsPicks posts={editorsPicks} />}
 
   {/* ── More stories ─────────────────────────────────────────────────── */}
   {
