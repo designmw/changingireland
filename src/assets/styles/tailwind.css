@@ -137,10 +137,16 @@
   border-bottom: 0;
 }
 #header.expanded nav > ul > li > a,
+#header.expanded nav > ul > li > button,
+#header.expanded nav > ul > li > div > a,
+#header.expanded nav > ul > li > div > span,
+#header.expanded nav > ul > li > div > button {
+  font-size: 1.0625rem;
+}
+#header.expanded nav > ul > li > a,
 #header.expanded nav > ul > li > button {
   width: 100%;
   padding: 0.9rem 0.5rem;
-  font-size: 1.0625rem;
 }
 #header.expanded nav .dropdown-menu {
   margin: -0.25rem 0 0.9rem 0.75rem;
