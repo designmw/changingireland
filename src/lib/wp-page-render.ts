@@ -141,44 +141,45 @@ const innerP = (html: string) => html.replace(/^<p>/, '').replace(/<\/p>$/, '');
 // Capsy paragraphs between entries become full-width group labels that split
 // the grid; a capsy line directly after the h4 stays in the card as meta.
 /**
- * Pull a card's first image out of its body so it can be rendered as a header.
+ * Pull a card's first image out of its body so it can be rendered beside text.
  *
  * WordPress left images wherever the author dropped them, which in practice
  * means below the "Learn More" link on one card and mid-paragraph on the next.
- * Read down a grid of those and the images look accidental. Hoisting the first
- * one makes every card the same shape; the fixed-height, cropped-to-fill
- * treatment in the .ci-card-media CSS is what then gives them a common size.
+ * Extracting the first image lets each card use a consistent text/image layout.
  *
  * Only the first image moves. A card carrying several has them for a reason,
  * so the rest stay in the flow.
  */
 function splitCardMedia(body: Token[]): { media: string | null; rest: Token[] } {
-  // A lone image is its own token; more often WordPress wrapped it in a <p>.
-  // A paragraph counts when the image is the first thing in it — either on its
-  // own, or leading the text (WP's `<p><img>caption text</p>` shape). Anything
-  // where the image sits mid-sentence is left alone; pulling it out would
-  // change what the author wrote.
-  const leading = /^<p[^>]*>\s*((?:<a [^>]*>\s*)?<img\b[^>]*>(?:\s*<\/a>)?)\s*/;
+  // Match any image, optionally wrapped in a link
+  const imgPattern = /((?:<a [^>]*>\s*)?<img\b[^>]*>(?:\s*<\/a>)?)/;
 
   for (let i = 0; i < body.length; i++) {
     const token = body[i];
     if (token.kind !== 'block') continue;
     const html = token.html.trim();
 
+    // A lone image or linked image as its own token
     if (isMedia(token)) {
       return { media: html, rest: body.filter((_, n) => n !== i) };
     }
 
-    const match = html.match(leading);
+    // Find the first image anywhere in the paragraph
+    const match = html.match(imgPattern);
     if (!match) continue;
-    const remainder = html.slice(match[0].length).replace(/^\s*(?:<\/p>)?\s*$/, '');
-    if (!remainder) {
-      // The paragraph held nothing else — drop it with the image.
-      return { media: match[1], rest: body.filter((_, n) => n !== i) };
+
+    // Extract the image
+    const imgHtml = match[1];
+    const remainder = html.replace(match[0], '').replace(/^\s*<p>\s*<\/p>\s*$/, '').trim();
+
+    if (!remainder || remainder === '<p></p>') {
+      // The paragraph held only the image — drop the whole token
+      return { media: imgHtml, rest: body.filter((_, n) => n !== i) };
     }
-    // Keep the paragraph, minus the image it opened with.
-    const trimmed: Token = { ...token, html: html.replace(match[0], html.startsWith('<p') ? '<p>' : '') };
-    return { media: match[1], rest: body.map((t, n) => (n === i ? trimmed : t)) };
+
+    // Keep the paragraph without the image
+    const trimmed: Token = { ...token, html: remainder };
+    return { media: imgHtml, rest: body.map((t, n) => (n === i ? trimmed : t)) };
   }
 
   return { media: null, rest: body };
@@ -308,12 +309,13 @@ function renderProse(tokens: Token[]): string {
  * still be reasoned about.
  */
 function sizeImages(html: string): string {
-  // Card header images are governed entirely by CSS — they fill a fixed box and
-  // crop. An inline max-width/height here would outrank that (inline beats the
-  // stylesheet), so those blocks are passed over.
+  // Card header images and split-media images are governed entirely by CSS —
+  // they fill their containers and should scale up to the column width. An
+  // inline max-width here would outrank that (inline beats the stylesheet),
+  // so those blocks are passed over.
   return html
-    .split(/(<div class="ci-card-media">[\s\S]*?<\/div>)/)
-    .map((chunk) => (chunk.startsWith('<div class="ci-card-media">') ? chunk : sizeFlowImages(chunk)))
+    .split(/(<div class="ci-(?:card|split)-media">[\s\S]*?<\/div>)/)
+    .map((chunk) => (/^<div class="ci-(?:card|split)-media">/.test(chunk) ? chunk : sizeFlowImages(chunk)))
     .join('');
 }
 

@@ -16,7 +16,7 @@ site:
   # "HTML tag" method (the content="..." value), not the whole meta tag.
   # Renders <meta name="google-site-verification"> in <head>. Leave '' if
   # verifying by DNS or by submitting the sitemap instead.
-  googleSiteVerificationId: ''
+  googleSiteVerificationId: 'Uka_OjhlEV2BIKaGbmVVwCVJcsEEuC6-pFysTPULVFY'
 
 # Default SEO metadata
 metadata:
@@ -78,7 +78,7 @@ apps:
 analytics:
   vendors:
     googleAnalytics:
-      id: null # set to the GA4 Measurement ID, e.g. "G-XXXXXXXXXX", to enable
+      id: "G-RY1GVWT8MP"
       # Google Analytics loads under Consent Mode v2: analytics/ads storage is
       # DENIED until the visitor accepts via the cookie banner. Setting an `id`
       # above is what makes the cookie banner appear.

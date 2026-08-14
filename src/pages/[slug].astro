@@ -316,24 +316,81 @@ if (isPost) {
     margin-top: 0.25rem;
     max-width: 14rem;
   }
-  /* Card grids built from a section's h3 entries, matching about-us. */
+  /* Card grids built from a section's h3 entries. Cards WITH images get a
+     bordered card with text/image side-by-side; cards WITHOUT images render
+     as simple prose (no card box). */
   .wp-prose .ci-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr));
-    gap: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
     margin: 1.5em 0 2.5em;
   }
-  .wp-prose .ci-card {
+
+  /* Cards WITH images: bordered card, side-by-side layout with 800x800 image area */
+  .wp-prose .ci-card:has(.ci-card-media) {
     background: #fff;
     border: 1px solid rgb(229 231 235);
     border-radius: 1rem;
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     padding: 1.5rem;
     margin: 0;
+    overflow: hidden;
   }
+  @media (min-width: 768px) {
+    .wp-prose .ci-card:has(.ci-card-media) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 400px;
+      gap: 2rem;
+      align-items: start;
+    }
+  }
+  @media (min-width: 1024px) {
+    .wp-prose .ci-card:has(.ci-card-media) {
+      grid-template-columns: minmax(0, 1fr) 500px;
+    }
+  }
+  .wp-prose .ci-card:has(.ci-card-media) .ci-card-body {
+    order: -1;
+  }
+  .wp-prose .ci-card:has(.ci-card-media) .ci-card-media {
+    background: rgb(249 250 251);
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1 / 1;
+    max-width: 500px;
+  }
+  .wp-prose .ci-card:has(.ci-card-media) .ci-card-media a,
+  .wp-prose .ci-card:has(.ci-card-media) .ci-card-media img {
+    display: block;
+  }
+  .wp-prose .ci-card:has(.ci-card-media) .ci-card-media img {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    object-position: center;
+    border-radius: 0.5rem;
+    margin: 0;
+  }
+
+  /* Cards WITHOUT images: simple prose style, no card box */
+  .wp-prose .ci-card:not(:has(.ci-card-media)) {
+    background: transparent;
+    border: none;
+    border-top: 1px solid rgb(229 231 235);
+    border-radius: 0;
+    box-shadow: none;
+    padding: 1.5rem 0 0;
+    margin: 0;
+  }
+
+  /* Common card typography */
   .wp-prose .ci-card h3 {
     margin: 0 0 0.5rem;
-    font-size: 1.125rem;
+    font-size: 1.25rem;
   }
   .wp-prose .ci-card p,
   .wp-prose .ci-card ul,
@@ -341,7 +398,8 @@ if (isPost) {
     font-size: 1rem;
     margin: 0.5rem 0;
   }
-  .wp-prose .ci-card > :last-child {
+  .wp-prose .ci-card > :last-child,
+  .wp-prose .ci-card .ci-card-body > :last-child {
     margin-bottom: 0;
   }
   /* Images left in a card flow keep their old restrained size. */
@@ -351,97 +409,6 @@ if (isPost) {
     max-width: 100%;
     border-radius: 0.5rem;
     margin: 0.25rem 0 0.5rem;
-  }
-
-  /* Card header image. Declared AFTER the rule above: both are (0,2,1) so
-     source order decides, and an earlier position let `width: auto` there win
-     and leave headers at their natural width.
-
-     The card's padding is cancelled with negative margins so the photo runs to
-     the edges. A fixed height with object-fit: cover is what makes a grid read
-     as one set — heights match, and nothing is stretched to get there. */
-  .wp-prose .ci-card {
-    overflow: hidden;
-  }
-  .wp-prose .ci-card-media {
-    margin: -1.5rem -1.5rem 1.25rem;
-    /* A tint behind the letterboxing makes the bands read as a deliberate
-       frame rather than a gap, and gives logos on white a soft edge. */
-    background: rgb(249 250 251);
-    border-bottom: 1px solid rgb(243 244 246);
-    padding: 0.75rem;
-  }
-  .wp-prose .ci-card-media a,
-  .wp-prose .ci-card-media img {
-    display: block;
-  }
-  .wp-prose .ci-card-media img {
-    width: 100%;
-    height: 12.5rem;
-    max-width: none;
-    max-height: none;
-    /* `contain`, not `cover`. Cropping to fill gives a tidier grid, and that
-       is what this was until the content was looked at properly: these cards
-       carry logos, posters and group photographs, and none of those survive a
-       crop. Safe Ireland's logo lost its second half, Activelink's read
-       "tivel", and the group shots lost every head. Whitespace around an
-       image is a cosmetic cost; a cut-off logo is a broken one. */
-    object-fit: contain;
-    object-position: center;
-    border-radius: 0;
-    margin: 0;
-  }
-  /* An odd trailing card would sit beside empty space; span the full row and
-     let its image sit large beside the text (e.g. the "Advertise in print"
-     card on /advertise). */
-  .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) {
-    grid-column: 1 / -1;
-  }
-  /* At full width there is room to set the image beside the text, which suits
-     these cards far better than a header: a contained image in a 894px-wide
-     header left most of the row empty either side of it. Only at this width —
-     inside a 438px card the same split would leave about 165px for the image
-     and a cramped column for the text. */
-  @media (min-width: 768px) {
-    .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) {
-      display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-      gap: 1.75rem;
-      align-items: center;
-    }
-    .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) .ci-card-media {
-      /* Bleed to the card's left, top and bottom edges, but not its right. */
-      margin: -1.5rem 0 -1.5rem -1.5rem;
-      border-bottom: 0;
-      border-right: 1px solid rgb(243 244 246);
-      height: 100%;
-      display: grid;
-      place-items: center;
-    }
-    .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) .ci-card-media img {
-      /* Fixed box + contain, the same as the stacked headers. Letting the
-         element take the picture's own shape reads better when it works, but
-         it only worked for portraits: the grid row still set a height, so the
-         one landscape photo on /whats-on came out 326x256 from an 810x455
-         original. A box it fits inside cannot do that. */
-      width: 100%;
-      height: 18rem;
-      max-width: none;
-      max-height: none;
-      object-fit: contain;
-    }
-  }
-  /* The full-width card is twice as wide, so a header of the same height
-     crops more than twice as hard — an 810x455 photo lost everything above
-     the shoulders. Taller box, shallower crop. */
-  .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) .ci-card-media img {
-    height: 16rem;
-    max-height: none;
-  }
-  .wp-prose .ci-cards > .ci-card:last-child:nth-child(odd):not(:first-child) img {
-    max-height: 15rem;
-    float: right;
-    margin: 0 0 1rem 1.5rem;
   }
   .wp-prose .ci-card-eyebrow {
     font-size: 0.75rem;
@@ -468,7 +435,9 @@ if (isPost) {
     margin: 0 0 0.25rem;
   }
   .wp-prose .ci-card-meta {
+    font-family: var(--aw-font-heading);
     font-size: 0.8rem;
+    font-weight: 700;
     letter-spacing: 0.03em;
     text-transform: uppercase;
     color: var(--aw-color-text-muted);
