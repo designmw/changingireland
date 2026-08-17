@@ -1,7 +1,7 @@
 ---
 import Image from '~/components/common/Image.astro';
-import logo from '~/assets/images/ci/ci-logo.webp';
-import logoOnDark from '~/assets/images/ci/ci-logo-transparent.png';
+import logo from '~/assets/images/ci/ci-logo-480.webp';
+import logoOnDark from '~/assets/images/ci/ci-logo-dark-480.webp';
 
 // The comic-style Changing Ireland masthead logo carried over from the
 // WordPress site. `onDark` swaps in the transparent-background version so the
@@ -18,8 +18,8 @@ const { class: className = 'w-44 md:w-52', onDark = false } = Astro.props;
     src={onDark ? logoOnDark : logo}
     alt="Changing Ireland"
     layout="responsive"
-    width={400}
-    height={225}
+    width={480}
+    height={270}
     loading="eager"
   />
 </span>

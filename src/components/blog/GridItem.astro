@@ -35,10 +35,10 @@ const link = APP_BLOG?.post?.isEnabled ? getPermalink(post.permalink, 'post') : 
             <Image
               src={image}
               class="w-full aspect-[16/10] object-cover"
-              widths={[400, 900]}
+              widths={[320, 480, 720, 960]}
               width={900}
               height={563}
-              sizes="(max-width: 900px) 400px, 900px"
+              sizes="(min-width: 1024px) 19rem, (min-width: 768px) 31vw, calc(100vw - 2rem)"
               alt=""
               format="webp"
               loading="lazy"
@@ -49,10 +49,10 @@ const link = APP_BLOG?.post?.isEnabled ? getPermalink(post.permalink, 'post') : 
           <Image
             src={image}
             class="w-full aspect-[16/10] object-cover"
-            widths={[400, 900]}
+            widths={[320, 480, 720, 960]}
             width={900}
             height={563}
-            sizes="(max-width: 900px) 400px, 900px"
+            sizes="(min-width: 1024px) 19rem, (min-width: 768px) 31vw, calc(100vw - 2rem)"
             alt={imageAlt ?? ''}
             format="webp"
             loading="lazy"

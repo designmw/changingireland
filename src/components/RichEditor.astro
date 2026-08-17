@@ -194,7 +194,7 @@ const editorId = `rich-${name}`;
 <script>
   import Quill from 'quill';
   import 'quill/dist/quill.snow.css';
-  import { toWebp } from '~/lib/webp-client';
+  import { toResponsiveWebp } from '~/lib/webp-client';
 
   /** Open a file picker and resolve with the chosen image, if any. */
   function pickImage(): Promise<File | null> {
@@ -211,8 +211,11 @@ const editorId = `rich-${name}`;
 
   async function uploadImage(file: File): Promise<string | null> {
     const body = new FormData();
-    // Compress to WebP client-side; falls back to the original file on failure.
-    body.append('image', await toWebp(file));
+    // Compress client-side and include the real responsive candidates used by
+    // article cards. Workers cannot run an image encoder after upload.
+    const upload = await toResponsiveWebp(file);
+    body.append('image', upload.primary);
+    upload.variants.forEach(({ width, file: variant }) => body.append(`image_${width}`, variant));
     try {
       const res = await fetch('/api/admin/upload', { method: 'POST', body });
       const json = (await res.json()) as { url?: string; error?: string };

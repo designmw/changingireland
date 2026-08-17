@@ -67,6 +67,7 @@ const isCdnUrl =
   typeof resolved === 'string' &&
   (resolved.startsWith('http://') || resolved.startsWith('https://')) &&
   parseUrl(resolved) !== undefined;
+const isR2Image = typeof resolved === 'string' && resolved.startsWith('/files/');
 
 // Infer missing dimension(s) from ESM-imported ImageMetadata. If only one of
 // width/height is provided, derive the other from the source aspect ratio.
@@ -156,6 +157,30 @@ const cdnSrcSet =
   isCdnUrl && cdnWidths?.length
     ? cdnWidths.map((bw) => `${buildCdnUrl(bw, heightFromWidth(bw))} ${bw}w`).join(', ')
     : undefined;
+
+// R2 media has pre-generated WebP siblings at these widths. Unlike the old
+// srcset (which repeated the same full-size URL under several descriptors),
+// every candidate below is a genuinely smaller object selected by /files/.
+// Keep this list aligned with scripts/responsive-media.mjs and webp-client.ts.
+const R2_BREAKPOINTS = [160, 320, 480, 720, 960, 1280, 1600];
+const normalizeR2Widths = (raw?: number[]): number[] | undefined => {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  return [
+    ...new Set(raw.map((candidate) => R2_BREAKPOINTS.find((breakpoint) => breakpoint >= candidate) ?? 1600)),
+  ].sort((a, b) => a - b);
+};
+const buildR2Url = (variantWidth?: number): string => {
+  const url = new URL(resolved as string, 'https://changingireland.invalid');
+  if (variantWidth && variantWidth < 1600) url.searchParams.set('w', String(variantWidth));
+  return `${url.pathname}${url.search}${url.hash}`;
+};
+const r2Widths = isR2Image ? normalizeR2Widths(widths) : undefined;
+const r2DefaultWidth = isR2Image && w ? R2_BREAKPOINTS.find((breakpoint) => breakpoint >= w) : undefined;
+const r2Src = isR2Image ? buildR2Url(r2DefaultWidth) : undefined;
+const r2SrcSet =
+  isR2Image && r2Widths?.length
+    ? r2Widths.map((variantWidth) => `${buildR2Url(variantWidth)} ${variantWidth}w`).join(', ')
+    : undefined;
 ---
 
 {
@@ -171,6 +196,8 @@ const cdnSrcSet =
       {...rest}
       style={finalStyle}
     />
+  ) : isR2Image ? (
+    <img src={r2Src} srcset={r2SrcSet} width={w} height={h} alt={alt} {...rest} style={finalStyle} />
   ) : (
     /* The native <Image /> typing is overly strict for our forwarding wrapper;
        we cast through `unknown` once so each call site keeps clean types. */

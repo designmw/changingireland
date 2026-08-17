@@ -4,6 +4,8 @@ import type { APIRoute } from 'astro';
 import { isEditor } from '~/lib/admin';
 import { getUploads } from '~/lib/auth';
 
+const RESPONSIVE_IMAGE_WIDTHS = [160, 320, 480, 720, 960, 1280] as const;
+
 /**
  * Image upload for the admin rich-text editor: multipart POST with an `image`
  * file, stored in R2 under uploads/editor/YYYY/MM/…, served back via /files/.
@@ -47,7 +49,25 @@ export const POST: APIRoute = async (context) => {
   const type =
     ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.gif' ? 'image/gif' : 'image/jpeg';
 
-  await uploads.put(key, file.stream(), { httpMetadata: { contentType: type } });
+  const variants: Array<{ width: number; file: File }> = [];
+  for (const width of RESPONSIVE_IMAGE_WIDTHS) {
+    const variant = form.get(`image_${width}`);
+    if (variant === null) continue;
+    if (!(variant instanceof File) || variant.size === 0 || variant.type !== 'image/webp') {
+      return new Response(JSON.stringify({ error: 'Invalid responsive image variant' }), { status: 400 });
+    }
+    if (variant.size > 4 * 1024 * 1024) {
+      return new Response(JSON.stringify({ error: 'Responsive image variant is too large' }), { status: 400 });
+    }
+    variants.push({ width, file: variant });
+  }
+
+  await Promise.all([
+    uploads.put(key, file.stream(), { httpMetadata: { contentType: type } }),
+    ...variants.map(({ width, file: variant }) =>
+      uploads.put(`${key}.w${width}.webp`, variant.stream(), { httpMetadata: { contentType: 'image/webp' } })
+    ),
+  ]);
 
   return new Response(JSON.stringify({ url: `/files/${key}` }), {
     headers: { 'Content-Type': 'application/json' },

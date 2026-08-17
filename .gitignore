@@ -27,4 +27,5 @@ pnpm-lock.yaml
 .wrangler/
 # webp pipeline run state (scripts/webp-media.mjs)
 scripts/data/media-mirror/webp-manifest.*.json
+scripts/data/media-mirror/responsive-manifest.*.json
 *.webp-tmp

@@ -17,6 +17,7 @@
     "setup": "node scripts/setup.mjs",
     "new": "node scripts/new.mjs",
     "brand": "node scripts/brand.mjs",
+    "media:responsive": "node scripts/responsive-media.mjs",
     "check": "npm run check:astro && npm run check:eslint && npm run check:prettier",
     "check:astro": "astro check",
     "check:eslint": "eslint .",

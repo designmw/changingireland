@@ -6,6 +6,7 @@ import Grid from '~/components/blog/Grid.astro';
 import GridItem from '~/components/blog/GridItem.astro';
 import AdSlot from '~/components/AdSlot.astro';
 import EditorsPicks from '~/components/widgets/EditorsPicks.astro';
+import Image from '~/components/common/Image.astro';
 import NewsMediaOrganizationSchema from '~/components/schema/NewsMediaOrganizationSchema.astro';
 import { getFormattedDate } from '~/utils/utils';
 
@@ -102,11 +103,13 @@ const metadata = {
                 aria-hidden="true"
                 class="block mb-4 rounded-sm overflow-hidden bg-gray-100"
               >
-                <img
+                <Image
                   src={lead.image_url}
                   alt=""
-                  width="960"
-                  height="600"
+                  widths={[480, 720, 960, 1280, 1600]}
+                  width={960}
+                  height={600}
+                  sizes="(min-width: 1024px) 50rem, calc(100vw - 2rem)"
                   class="w-full aspect-[16/10] object-cover"
                   loading="eager"
                   fetchpriority="high"
@@ -144,11 +147,13 @@ const metadata = {
                     aria-hidden="true"
                     class="block mb-3 rounded-sm overflow-hidden bg-gray-100"
                   >
-                    <img
+                    <Image
                       src={p.image_url}
                       alt=""
-                      width="480"
-                      height="300"
+                      widths={[320, 480, 720, 960]}
+                      width={480}
+                      height={300}
+                      sizes="(min-width: 1024px) 24rem, calc(100vw - 2rem)"
                       class="w-full aspect-[16/10] object-cover"
                       loading="lazy"
                       decoding="async"
@@ -238,11 +243,14 @@ const metadata = {
                 class="group relative block aspect-[4/5] overflow-hidden rounded-sm bg-gray-800"
               >
                 {block.post.image_url && (
-                  <img
+                  <Image
                     src={block.post.image_url}
                     alt=""
-                    width="480"
-                    height="600"
+                    widths={[320, 480, 720, 960]}
+                    width={480}
+                    height={600}
+                    sizes="(min-width: 1024px) 24rem, (min-width: 768px) 50vw, calc(100vw - 2rem)"
+                    layout="cover"
                     loading="lazy"
                     decoding="async"
                     class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"

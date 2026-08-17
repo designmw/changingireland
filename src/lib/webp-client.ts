@@ -11,6 +11,11 @@
 // higher to compensate.
 const MAX_WIDTH = 1600;
 const QUALITY = 0.82;
+const VARIANT_QUALITY = 0.78;
+
+// Keep aligned with Image.astro, /files/[...path].ts, and
+// scripts/responsive-media.mjs.
+export const RESPONSIVE_IMAGE_WIDTHS = [160, 320, 480, 720, 960, 1280] as const;
 
 /**
  * Per-form override for the width cap. The default suits article and cover
@@ -53,6 +58,43 @@ export async function toWebp(file: File, maxWidth: number = MAX_WIDTH): Promise<
   } catch {
     // Never block an upload over compression — the server accepts PNG/JPEG too.
     return file;
+  }
+}
+
+/**
+ * Prepare the full-size upload plus the responsive WebP siblings used by
+ * /files/?w=. GIFs keep their animation and intentionally have no variants.
+ */
+export async function toResponsiveWebp(file: File): Promise<{
+  primary: File;
+  variants: Array<{ width: number; file: File }>;
+}> {
+  const primary = await toWebp(file);
+  if (file.type === 'image/gif') return { primary, variants: [] };
+
+  try {
+    const bitmap = await createImageBitmap(primary);
+    const variants: Array<{ width: number; file: File }> = [];
+    for (const width of RESPONSIVE_IMAGE_WIDTHS) {
+      if (width >= bitmap.width) continue;
+      const height = Math.max(1, Math.round((bitmap.height * width) / bitmap.width));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) continue;
+      ctx.drawImage(bitmap, 0, 0, width, height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', VARIANT_QUALITY));
+      if (!blob || blob.type !== 'image/webp') continue;
+      variants.push({
+        width,
+        file: new File([blob], `${primary.name}.w${width}.webp`, { type: 'image/webp' }),
+      });
+    }
+    bitmap.close();
+    return { primary, variants };
+  } catch {
+    return { primary, variants: [] };
   }
 }
 
