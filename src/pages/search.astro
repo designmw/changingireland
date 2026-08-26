@@ -7,7 +7,7 @@ import Grid from '~/components/blog/Grid.astro';
 import PageNav from '~/components/blog/PageNav.astro';
 
 import { getDb } from '~/lib/auth';
-import { getPublishedPage, getTaxonomyCounts } from '~/lib/posts';
+import { getPublishedPage, getCachedTaxonomyCounts } from '~/lib/posts';
 import { rowToPost } from '~/lib/post-adapter';
 
 // Server-side search over title, body, and author with a D1 LIKE query,
@@ -25,7 +25,7 @@ const result =
     ? await getPublishedPage(db, { page: pageNum, q, category: category || undefined, sort })
     : { rows: [], total: 0, page: 1, totalPages: 1 };
 const posts = result.rows.map(rowToPost);
-const categories = db ? await getTaxonomyCounts(db, 'categories') : [];
+const categories = db ? await getCachedTaxonomyCounts(db, 'categories') : [];
 
 // Carried through pagination links
 const params: Record<string, string> = {

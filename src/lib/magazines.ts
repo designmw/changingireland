@@ -15,10 +15,12 @@ export interface MagazineRow {
   created_at: string;
 }
 
-export async function getAllMagazines(db: D1Database): Promise<MagazineRow[]> {
-  const { results } = await db
-    .prepare('SELECT * FROM magazines ORDER BY sort_order DESC, issue DESC')
-    .all<MagazineRow>();
+export async function getAllMagazines(db: D1Database, limit = 0): Promise<MagazineRow[]> {
+  // idx_magazines_sort covers this ORDER BY, so a limited call (e.g. the header's
+  // 4-issue strip) reads only those rows instead of the whole back-catalogue.
+  const sql = `SELECT * FROM magazines ORDER BY sort_order DESC, issue DESC${limit ? ' LIMIT ?' : ''}`;
+  const stmt = limit ? db.prepare(sql).bind(limit) : db.prepare(sql);
+  const { results } = await stmt.all<MagazineRow>();
   return results ?? [];
 }
 

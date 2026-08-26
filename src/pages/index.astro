@@ -15,7 +15,7 @@ import {
   getPublishedPosts,
   getPublishedPage,
   getFeaturedPosts,
-  getTaxonomyCounts,
+  getCachedTaxonomyCounts,
   parseTaxonomies,
   type PostRow,
 } from '~/lib/posts';
@@ -50,7 +50,7 @@ if (db) {
   // then grouped into slots (a full-width ad alone, two half-width side by side).
   if (await getSetting(db, HOMEPAGE_ADS_KEY, true)) adSlots = groupAdsIntoSlots(await getActiveAds(db, 4));
 
-  const allCats = await getTaxonomyCounts(db, 'categories');
+  const allCats = await getCachedTaxonomyCounts(db, 'categories');
   const chosen: string[] = await getSetting(db, HOMEPAGE_CATEGORIES_KEY, []);
   const slugs = chosen.length > 0 ? chosen : allCats.slice(0, 6).map((c) => c.slug);
   for (const slug of slugs) {

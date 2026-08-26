@@ -21,11 +21,11 @@ export const GET: APIRoute = async ({ url }) => {
   const like = `%${q}%`;
   const { results } = await db
     .prepare(
-      `SELECT title, slug, author, categories, image_url, COALESCE(published_at, created_at) AS date,
+      `SELECT title, slug, author, categories, image_url, sort_at AS date,
               (title LIKE ?) AS title_hit
          FROM posts
         WHERE ${LIVE_WHERE} AND (title LIKE ? OR author LIKE ? OR content LIKE ?)
-        ORDER BY title_hit DESC, COALESCE(published_at, created_at) DESC
+        ORDER BY title_hit DESC, sort_at DESC
         LIMIT 8`
     )
     .bind(like, like, like, like)

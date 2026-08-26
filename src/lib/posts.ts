@@ -7,6 +7,8 @@
  * idempotent. See migrations/0002_posts.sql.
  */
 
+import { getSetting, setSetting } from '~/lib/settings';
+
 export interface Taxonomy {
   slug: string;
   title: string;
@@ -92,16 +94,23 @@ export function metaDescription(text: string, limit = 155): string {
   );
 }
 
-const ORDER = 'ORDER BY COALESCE(published_at, created_at) DESC';
+// Order and filter on posts.sort_at — the format-normalized COALESCE(published_at,
+// created_at) maintained by the triggers in migrations/0007. It's the DESC key of
+// idx_posts_live(published, sort_at), so a LIMIT-ed listing reads only the rows it
+// returns instead of temp-sorting the whole table (which is what
+// `ORDER BY COALESCE(...)` did, and what blew the D1 free-tier row budget).
+const ORDER = 'ORDER BY sort_at DESC';
+const ORDER_ASC = 'ORDER BY sort_at ASC';
 
 /**
- * A post is publicly visible when it's published AND its publish time (if
- * set) has passed — a future published_at is a scheduled post, queued until
- * that moment. datetime() normalises both stored formats (ISO-with-T from the
- * admin, space-separated from the WordPress import) and datetime('now') is
- * UTC, matching the UTC instants the admin stores.
+ * A post is publicly visible when it's published AND its publish time has
+ * passed. sort_at collapses that into one sargable test: a scheduled post has a
+ * future published_at (hence future sort_at) and a post with no published_at
+ * falls back to its always-past created_at. Comparing against the same
+ * strftime() shape the trigger stores keeps it an index range scan on
+ * idx_posts_live rather than a full-table datetime() evaluation.
  */
-export const LIVE_WHERE = "published = 1 AND (published_at IS NULL OR datetime(published_at) <= datetime('now'))";
+export const LIVE_WHERE = "published = 1 AND sort_at <= strftime('%Y-%m-%dT%H:%M:%SZ','now')";
 
 /** The LIVE_WHERE rule for a row already in hand (e.g. the single-post page). */
 export function isLive(row: PostRow): boolean {
@@ -139,12 +148,12 @@ export async function getPublishedPage(
   const binds: (string | number)[] = [];
 
   if (opts.category) {
-    where.push('categories LIKE ?');
-    binds.push(`%"slug":${JSON.stringify(opts.category)}%`);
+    where.push("id IN (SELECT post_id FROM post_taxonomies WHERE kind = 'categories' AND slug = ?)");
+    binds.push(opts.category);
   }
   if (opts.tag) {
-    where.push('tags LIKE ?');
-    binds.push(`%"slug":${JSON.stringify(opts.tag)}%`);
+    where.push("id IN (SELECT post_id FROM post_taxonomies WHERE kind = 'tags' AND slug = ?)");
+    binds.push(opts.tag);
   }
   if (opts.q) {
     where.push('(title LIKE ? OR content LIKE ? OR author LIKE ?)');
@@ -161,7 +170,7 @@ export async function getPublishedPage(
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const page = Math.min(Math.max(1, opts.page ?? 1), totalPages);
 
-  const order = opts.sort === 'oldest' ? 'ORDER BY COALESCE(published_at, created_at) ASC' : ORDER;
+  const order = opts.sort === 'oldest' ? ORDER_ASC : ORDER;
   const { results } = await db
     .prepare(`SELECT * FROM posts WHERE ${whereSql} ${order} LIMIT ? OFFSET ?`)
     .bind(...binds, perPage, (page - 1) * perPage)
@@ -201,8 +210,13 @@ export async function getRelatedPosts(db: D1Database, row: PostRow, limit = 4): 
   const cats = parseTaxonomies(row.categories);
   if (cats.length > 0) {
     const { results } = await db
-      .prepare(`SELECT * FROM posts WHERE ${LIVE_WHERE} AND id != ? AND categories LIKE ? ${ORDER} LIMIT ?`)
-      .bind(row.id, `%"slug":${JSON.stringify(cats[0].slug)}%`, limit)
+      .prepare(
+        `SELECT * FROM posts
+          WHERE ${LIVE_WHERE} AND id != ?
+            AND id IN (SELECT post_id FROM post_taxonomies WHERE kind = 'categories' AND slug = ?)
+          ${ORDER} LIMIT ?`
+      )
+      .bind(row.id, cats[0].slug, limit)
       .all<PostRow>();
     if (results && results.length > 0) return results;
   }
@@ -214,27 +228,76 @@ export async function getRelatedPosts(db: D1Database, row: PostRow, limit = 4): 
 }
 
 /**
- * Every category (or tag) in use on published posts, with counts, derived from
- * the JSON columns. Reads slugs+titles only, so it stays cheap enough to run
- * per request on the archive pages.
+ * Every category (or tag) in use on published posts, with counts. Reads the
+ * indexed post_taxonomies join table (migrations/0007) instead of pulling and
+ * JSON-parsing every row, but it still aggregates across all live posts — a few
+ * thousand index rows. That's fine for the archive pages that ask for a fresh
+ * count, but too much to run on every page: the header uses the cached wrapper
+ * below instead. See getCachedTaxonomyCounts.
  */
 export async function getTaxonomyCounts(
   db: D1Database,
   column: 'categories' | 'tags'
 ): Promise<(Taxonomy & { count: number })[]> {
-  const { results } = await db.prepare(`SELECT ${column} AS tax FROM posts WHERE ${LIVE_WHERE}`).all<{ tax: string }>();
-  const counts = new Map<string, Taxonomy & { count: number }>();
-  for (const r of results ?? []) {
-    for (const t of parseTaxonomies(r.tax)) {
-      const cur = counts.get(t.slug);
-      if (cur) cur.count++;
-      else counts.set(t.slug, { ...t, count: 1 });
-    }
+  const { results } = await db
+    .prepare(
+      `SELECT pt.slug AS slug, pt.title AS title, COUNT(*) AS count
+         FROM post_taxonomies pt
+         JOIN posts p ON p.id = pt.post_id
+        WHERE pt.kind = ?
+          AND p.published = 1 AND p.sort_at <= strftime('%Y-%m-%dT%H:%M:%SZ','now')
+          AND pt.slug != 'uncategorized'
+        GROUP BY pt.slug, pt.title
+        ORDER BY count DESC`
+    )
+    .bind(column)
+    .all<Taxonomy & { count: number }>();
+  return results ?? [];
+}
+
+/** settings keys holding the pre-aggregated taxonomy counts. */
+const TAX_CACHE_KEY = { categories: 'tax_counts_categories', tags: 'tax_counts_tags' } as const;
+
+/**
+ * Taxonomy counts for the hot path (the header renders on every page). Reads a
+ * single pre-aggregated row from `settings` rather than scanning the join table
+ * per request. Refreshed by refreshTaxonomyCache() whenever a post is written;
+ * the first read after a deploy computes and stores it lazily. Scheduled posts
+ * crossing their publish time can leave a count a little stale until the next
+ * write, which is immaterial for nav counts.
+ */
+export async function getCachedTaxonomyCounts(
+  db: D1Database,
+  column: 'categories' | 'tags'
+): Promise<(Taxonomy & { count: number })[]> {
+  const cached = await getSetting<(Taxonomy & { count: number })[] | null>(db, TAX_CACHE_KEY[column], null);
+  if (cached) return cached;
+  const fresh = await getTaxonomyCounts(db, column);
+  await setSetting(db, TAX_CACHE_KEY[column], fresh);
+  return fresh;
+}
+
+/** Recompute and store both taxonomy count caches. Called after any post write. */
+export async function refreshTaxonomyCache(db: D1Database): Promise<void> {
+  for (const column of ['categories', 'tags'] as const) {
+    await setSetting(db, TAX_CACHE_KEY[column], await getTaxonomyCounts(db, column));
   }
-  // WP's default bucket isn't a real section — keep it off menus and strips
-  // (the /category/uncategorized archive itself still resolves).
-  counts.delete('uncategorized');
-  return [...counts.values()].sort((a, b) => b.count - a.count);
+}
+
+/**
+ * The display title for one category/tag slug — a single indexed lookup, so the
+ * archive pages don't aggregate every taxonomy just to name their heading.
+ */
+export async function getTaxonomyTitle(
+  db: D1Database,
+  kind: 'categories' | 'tags',
+  slug: string
+): Promise<string | null> {
+  const row = await db
+    .prepare('SELECT title FROM post_taxonomies WHERE kind = ? AND slug = ? LIMIT 1')
+    .bind(kind, slug)
+    .first<{ title: string }>();
+  return row?.title ?? null;
 }
 
 /** True when `slug` is already taken by a different post. */
@@ -286,6 +349,9 @@ export async function createPost(db: D1Database, p: PostInput): Promise<number> 
       p.publishedAt || (p.publish ? new Date().toISOString() : null)
     )
     .run();
+  // The triggers in migrations/0007 have already filled post_taxonomies for the
+  // new row; refresh the cached counts the header reads.
+  await refreshTaxonomyCache(db);
   return Number(res.meta.last_row_id);
 }
 
@@ -325,8 +391,10 @@ export async function updatePost(db: D1Database, id: number, p: PostInput): Prom
       id
     )
     .run();
+  await refreshTaxonomyCache(db);
 }
 
 export async function deletePost(db: D1Database, id: number): Promise<void> {
   await db.prepare('DELETE FROM posts WHERE id = ?').bind(id).run();
+  await refreshTaxonomyCache(db);
 }

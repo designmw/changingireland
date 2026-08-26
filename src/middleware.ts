@@ -107,6 +107,34 @@ function legacyRedirect(url: URL): string | null {
   return null;
 }
 
+/**
+ * Edge cache for anonymous GETs.
+ *
+ * Every public page is `prerender = false`, so without this each request —
+ * including every bot crawl — re-runs the D1 queries. Anonymous, cacheable
+ * responses are stored in the colo cache (caches.default) for a few minutes so
+ * repeat and crawler traffic is served without touching the database. Logged-in
+ * editors (a session cookie present) bypass it entirely and always see fresh
+ * content, and an admin edit propagates within EDGE_TTL seconds.
+ */
+const EDGE_TTL = 300;
+
+function isEdgeCacheable(request: Request, url: URL): boolean {
+  if (request.method !== 'GET') return false;
+  if (import.meta.env.DEV) return false;
+  const p = url.pathname;
+  // Anything that is user-specific, mutating, or an auth surface stays uncached.
+  if (p === '/api' || p.startsWith('/api/')) return false;
+  if (p.startsWith('/admin') || p.startsWith('/login') || p.startsWith('/logout')) return false;
+  return true;
+}
+
+function edgeCacheKey(url: string): Request {
+  // Key on the full URL only (query included, so ?page=N archives cache
+  // separately); anonymous responses carry no other varying input.
+  return new Request(url, { method: 'GET' });
+}
+
 export const onRequest = defineMiddleware(async (context, next) => {
   const redirectTo = legacyRedirect(context.url);
   if (redirectTo) return withSecurityHeaders(context.redirect(redirectTo, 301));
@@ -126,16 +154,59 @@ export const onRequest = defineMiddleware(async (context, next) => {
     };
     return withSecurityHeaders(await next());
   }
-  const db = await getDb();
-  if (db) {
-    const sessionId = getSessionId(context.cookies);
-    if (sessionId) {
-      try {
-        context.locals.user = await getSessionUser(db, sessionId);
-      } catch {
-        // table missing (migrations not applied yet) — treat as logged out
+  const sessionId = getSessionId(context.cookies);
+
+  // Anonymous (no session cookie) + cacheable route: try the edge cache before
+  // doing any database work at all.
+  const canCache = !sessionId && isEdgeCacheable(context.request, context.url);
+  if (canCache) {
+    try {
+      const hit = await caches.default.match(edgeCacheKey(context.request.url));
+      if (hit) {
+        const served = new Response(hit.body, hit);
+        served.headers.set('x-edge-cache', 'hit');
+        return served;
       }
+    } catch {
+      // Cache API unavailable (e.g. astro dev) — fall through to a live render.
     }
   }
-  return withSecurityHeaders(await next());
+
+  const db = await getDb();
+  if (db && sessionId) {
+    try {
+      context.locals.user = await getSessionUser(db, sessionId);
+    } catch {
+      // table missing (migrations not applied yet) — treat as logged out
+    }
+  }
+
+  const response = withSecurityHeaders(await next());
+
+  // Store a copy for the next anonymous visitor. Never cache an error, a
+  // response that sets a cookie, or anything rendered for a logged-in user.
+  // This is a best-effort side effect: we cache a clone and always return the
+  // original response with its body untouched, so a cache failure can never
+  // break the page.
+  if (canCache && !context.locals.user && response.status === 200 && !response.headers.has('set-cookie')) {
+    try {
+      const cacheCopy = response.clone();
+      cacheCopy.headers.set('Cache-Control', `public, max-age=0, s-maxage=${EDGE_TTL}, stale-while-revalidate=600`);
+      // Astro v6 exposes the Cloudflare ExecutionContext as locals.cfContext;
+      // waitUntil lets the cache write finish after the response is sent.
+      const cf = (context.locals as { cfContext?: { waitUntil?: (p: Promise<unknown>) => void } }).cfContext;
+      const put = caches.default.put(edgeCacheKey(context.request.url), cacheCopy);
+      if (cf && typeof cf.waitUntil === 'function') cf.waitUntil(put);
+      else await put;
+    } catch {
+      // Cache write failed — the original response below is still served.
+    }
+    try {
+      response.headers.set('x-edge-cache', 'miss');
+    } catch {
+      /* immutable headers — skip the status header */
+    }
+  }
+
+  return response;
 });

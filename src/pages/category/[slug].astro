@@ -9,7 +9,7 @@ import PageNav from '~/components/blog/PageNav.astro';
 import { blogCategoryRobots } from '~/utils/blog';
 import { getCanonical } from '~/utils/permalinks';
 import { getDb } from '~/lib/auth';
-import { getPublishedPage, getTaxonomyCounts } from '~/lib/posts';
+import { getPublishedPage, getTaxonomyTitle } from '~/lib/posts';
 import { rowToPost } from '~/lib/post-adapter';
 
 // /category/[slug] — same URLs as the WordPress site, paginated with ?page=N.
@@ -21,7 +21,7 @@ const pageNum = Math.max(1, Number(Astro.url.searchParams.get('page') ?? 1));
 const result = await getPublishedPage(db, { page: pageNum, category: slug });
 if (result.total === 0) return new Response(null, { status: 404 });
 
-const title = (await getTaxonomyCounts(db, 'categories')).find((c) => c.slug === slug)?.title ?? slug;
+const title = (await getTaxonomyTitle(db, 'categories', slug)) ?? slug;
 const posts = result.rows.map(rowToPost);
 
 const metadata = {

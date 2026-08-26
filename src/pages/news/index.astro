@@ -10,7 +10,7 @@ import SearchForm from '~/components/blog/SearchForm.astro';
 import { blogListRobots } from '~/utils/blog';
 import { getCanonical } from '~/utils/permalinks';
 import { getDb } from '~/lib/auth';
-import { getPublishedPage, getTaxonomyCounts } from '~/lib/posts';
+import { getPublishedPage, getCachedTaxonomyCounts } from '~/lib/posts';
 import { rowToPost } from '~/lib/post-adapter';
 
 // The full archive, newest first, straight from D1 so /admin publishing is
@@ -20,7 +20,7 @@ const pageNum = Math.max(1, Number(Astro.url.searchParams.get('page') ?? 1));
 
 const result = db ? await getPublishedPage(db, { page: pageNum }) : { rows: [], total: 0, page: 1, totalPages: 1 };
 const posts = result.rows.map(rowToPost);
-const categories = db ? (await getTaxonomyCounts(db, 'categories')).slice(0, 12) : [];
+const categories = db ? (await getCachedTaxonomyCounts(db, 'categories')).slice(0, 12) : [];
 
 const metadata = {
   title: `News${result.page > 1 ? ` — Page ${result.page}` : ''}`,

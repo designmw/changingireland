@@ -82,10 +82,10 @@ export const GET: APIRoute = async () => {
     try {
       const query = await db
         .prepare(
-          `SELECT slug, categories, updated_at, COALESCE(published_at, created_at) AS date
+          `SELECT slug, categories, updated_at, sort_at AS date
              FROM posts
             WHERE ${LIVE_WHERE}
-            ORDER BY COALESCE(published_at, created_at) DESC`
+            ORDER BY sort_at DESC`
         )
         .all<{ slug: string; categories: string; updated_at: string; date: string }>();
       results = query.results ?? [];

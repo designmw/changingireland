@@ -6,7 +6,7 @@ import ToggleMenu from '~/components/common/ToggleMenu.astro';
 
 import { getHomePermalink, trimSlash } from '~/utils/permalinks';
 import { getDb } from '~/lib/auth';
-import { getTaxonomyCounts, getPublishedPosts, type PostRow } from '~/lib/posts';
+import { getCachedTaxonomyCounts, getPublishedPosts, type PostRow } from '~/lib/posts';
 import { hiddenNavCategories } from '~/navigation';
 import { getAllMagazines, type MagazineRow } from '~/lib/magazines';
 
@@ -63,9 +63,11 @@ try {
     // whatever happened to rank top-12 into the nav, which is how "Activism &
     // Volunteering", "Equality & Rights", "Harry's Diary" and "Funding
     // Programmes" appeared in a menu that is meant to mirror the WordPress one.
-    megaCategories = (await getTaxonomyCounts(db, 'categories')).filter((c) => !hiddenNavCategories.has(c.slug));
+    // The header renders on every page, so these must be cheap: cached counts
+    // (one settings row) and index-limited lookups, never a table scan.
+    megaCategories = (await getCachedTaxonomyCounts(db, 'categories')).filter((c) => !hiddenNavCategories.has(c.slug));
     megaPosts = await getPublishedPosts(db, 2);
-    megaMagazines = (await getAllMagazines(db)).slice(0, 4);
+    megaMagazines = await getAllMagazines(db, 4);
   }
 } catch {
   // migrations not applied yet — keep the simple menus
