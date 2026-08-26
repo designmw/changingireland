@@ -129,8 +129,13 @@ export async function getAllPosts(db: D1Database): Promise<PostRow[]> {
 
 /**
  * One page of published posts, optionally filtered by category slug, tag slug,
- * or a search query. Filters run in SQL (JSON columns matched with LIKE on the
- * serialised `"slug":"…"` pair — fine at this scale, ~1k rows).
+ * or a search query.
+ *
+ * When a category or tag filter is present the query drives *from* the
+ * post_taxonomies join table (idx_ptax_lookup), so it touches only that
+ * section's posts. Driving from `posts` instead — scanning the archive in date
+ * order until enough in-section rows turn up — read hundreds of rows per
+ * archive page; this reads roughly the section's size.
  */
 export async function getPublishedPage(
   db: D1Database,
@@ -144,35 +149,52 @@ export async function getPublishedPage(
   } = {}
 ): Promise<PostListPage> {
   const perPage = opts.perPage ?? POSTS_PER_PAGE;
-  const where: string[] = [LIVE_WHERE];
+  const where: string[] = [];
   const binds: (string | number)[] = [];
 
-  if (opts.category) {
-    where.push("id IN (SELECT post_id FROM post_taxonomies WHERE kind = 'categories' AND slug = ?)");
-    binds.push(opts.category);
+  // Pick the primary taxonomy to drive the query from (its index gives us the
+  // section directly). A second taxonomy filter stays a membership test.
+  const driver = opts.category
+    ? { kind: 'categories', slug: opts.category }
+    : opts.tag
+      ? { kind: 'tags', slug: opts.tag }
+      : null;
+
+  let from = 'posts p';
+  if (driver) {
+    // CROSS JOIN pins the join order: SQLite drives from the taxonomy index
+    // (just this section's rows) and PK-looks-up each post. A plain JOIN lets
+    // it drive from posts-by-date and probe membership, which scans the whole
+    // live table for a small section.
+    from = 'post_taxonomies pt CROSS JOIN posts p';
+    where.push('p.id = pt.post_id', 'pt.kind = ?', 'pt.slug = ?');
+    binds.push(driver.kind, driver.slug);
   }
-  if (opts.tag) {
-    where.push("id IN (SELECT post_id FROM post_taxonomies WHERE kind = 'tags' AND slug = ?)");
+  where.push('p.published = 1', "p.sort_at <= strftime('%Y-%m-%dT%H:%M:%SZ','now')");
+
+  if (opts.category && opts.tag) {
+    where.push("p.id IN (SELECT post_id FROM post_taxonomies WHERE kind = 'tags' AND slug = ?)");
     binds.push(opts.tag);
   }
   if (opts.q) {
-    where.push('(title LIKE ? OR content LIKE ? OR author LIKE ?)');
+    where.push('(p.title LIKE ? OR p.content LIKE ? OR p.author LIKE ?)');
     const like = `%${opts.q}%`;
     binds.push(like, like, like);
   }
 
   const whereSql = where.join(' AND ');
+  const order = opts.sort === 'oldest' ? 'ORDER BY p.sort_at ASC' : 'ORDER BY p.sort_at DESC';
+
   const count = await db
-    .prepare(`SELECT COUNT(*) AS n FROM posts WHERE ${whereSql}`)
+    .prepare(`SELECT COUNT(*) AS n FROM ${from} WHERE ${whereSql}`)
     .bind(...binds)
     .first<{ n: number }>();
   const total = count?.n ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const page = Math.min(Math.max(1, opts.page ?? 1), totalPages);
 
-  const order = opts.sort === 'oldest' ? ORDER_ASC : ORDER;
   const { results } = await db
-    .prepare(`SELECT * FROM posts WHERE ${whereSql} ${order} LIMIT ? OFFSET ?`)
+    .prepare(`SELECT p.* FROM ${from} WHERE ${whereSql} ${order} LIMIT ? OFFSET ?`)
     .bind(...binds, perPage, (page - 1) * perPage)
     .all<PostRow>();
 
@@ -209,14 +231,18 @@ export async function getPostById(db: D1Database, id: number): Promise<PostRow |
 export async function getRelatedPosts(db: D1Database, row: PostRow, limit = 4): Promise<PostRow[]> {
   const cats = parseTaxonomies(row.categories);
   if (cats.length > 0) {
+    // Drive from the category's join rows rather than scanning posts by date.
+    // CROSS JOIN drives from the category's index rows (see getPublishedPage).
     const { results } = await db
       .prepare(
-        `SELECT * FROM posts
-          WHERE ${LIVE_WHERE} AND id != ?
-            AND id IN (SELECT post_id FROM post_taxonomies WHERE kind = 'categories' AND slug = ?)
-          ${ORDER} LIMIT ?`
+        `SELECT p.* FROM post_taxonomies pt
+           CROSS JOIN posts p
+          WHERE p.id = pt.post_id AND pt.kind = 'categories' AND pt.slug = ?
+            AND p.published = 1 AND p.sort_at <= strftime('%Y-%m-%dT%H:%M:%SZ','now')
+            AND p.id != ?
+          ORDER BY p.sort_at DESC LIMIT ?`
       )
-      .bind(row.id, cats[0].slug, limit)
+      .bind(cats[0].slug, row.id, limit)
       .all<PostRow>();
     if (results && results.length > 0) return results;
   }
