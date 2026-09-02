@@ -115,9 +115,19 @@ function legacyRedirect(url: URL): string | null {
  * responses are stored in the colo cache (caches.default) for a few minutes so
  * repeat and crawler traffic is served without touching the database. Logged-in
  * editors (a session cookie present) bypass it entirely and always see fresh
- * content, and an admin edit propagates within EDGE_TTL seconds.
+ * content, and an admin edit propagates to anonymous visitors within EDGE_TTL
+ * seconds.
+ *
+ * One hour, not the five minutes it used to be: the row budget on the Workers
+ * Free plan is spent almost entirely on cache *misses* (a crawler walking
+ * thousands of archive/pagination URLs, each re-rendered once its entry
+ * expires), so a 12x longer TTL is roughly a 12x cut in database work. The
+ * cost is only that a content edit takes up to an hour to reach logged-out
+ * visitors — fine for a magazine archive, and stale-while-revalidate serves the
+ * old copy instantly while the first post-expiry request refreshes it. Editors
+ * bypass the cache, so they always see their change immediately.
  */
-const EDGE_TTL = 300;
+const EDGE_TTL = 3600;
 
 function isEdgeCacheable(request: Request, url: URL): boolean {
   if (request.method !== 'GET') return false;

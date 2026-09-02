@@ -185,11 +185,22 @@ export async function getPublishedPage(
   const whereSql = where.join(' AND ');
   const order = opts.sort === 'oldest' ? 'ORDER BY p.sort_at ASC' : 'ORDER BY p.sort_at DESC';
 
-  const count = await db
-    .prepare(`SELECT COUNT(*) AS n FROM ${from} WHERE ${whereSql}`)
-    .bind(...binds)
-    .first<{ n: number }>();
-  const total = count?.n ?? 0;
+  // The unfiltered live archive (every ?page=N of /news) is the page bots walk,
+  // and its COUNT(*) range-scans every published row. That total barely moves
+  // between edits, so read it from the settings cache (refreshed on every write)
+  // instead of counting live. Filtered and searched listings keep the live
+  // count: a category/tag drives from the taxonomy index (just that section),
+  // and search is disallowed to crawlers.
+  let total: number;
+  if (!driver && !opts.q) {
+    total = await getCachedLiveCount(db);
+  } else {
+    const count = await db
+      .prepare(`SELECT COUNT(*) AS n FROM ${from} WHERE ${whereSql}`)
+      .bind(...binds)
+      .first<{ n: number }>();
+    total = count?.n ?? 0;
+  }
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const page = Math.min(Math.max(1, opts.page ?? 1), totalPages);
 
@@ -284,6 +295,38 @@ export async function getTaxonomyCounts(
 /** settings keys holding the pre-aggregated taxonomy counts. */
 const TAX_CACHE_KEY = { categories: 'tax_counts_categories', tags: 'tax_counts_tags' } as const;
 
+/** settings key holding the pre-aggregated count of live (published, past) posts. */
+const LIVE_COUNT_KEY = 'live_post_count';
+
+/**
+ * The number of live posts, for the unfiltered archive's pagination — read from
+ * the settings cache, not counted per request.
+ *
+ * The COUNT(*) this replaces range-scans every published row (~1k) on every
+ * `/news` and `?page=N` render, and crawlers walking the pagination made that
+ * the single biggest source of D1 row reads on the Workers Free plan. The total
+ * moves only when a post is created/deleted or crosses its publish time, so a
+ * cached value refreshed on every write (like the taxonomy counts) is
+ * effectively always right; a scheduled post going live can leave it off by a
+ * few until the next write, which at most misplaces a handful of posts on the
+ * final archive page — immaterial, and the same staleness the nav counts accept.
+ */
+export async function getCachedLiveCount(db: D1Database): Promise<number> {
+  const cached = await getSetting<number | null>(db, LIVE_COUNT_KEY, null);
+  if (typeof cached === 'number') return cached;
+  const fresh = await countLivePosts(db);
+  await setSetting(db, LIVE_COUNT_KEY, fresh);
+  return fresh;
+}
+
+/** Count live posts directly (the range scan the cache exists to avoid). */
+async function countLivePosts(db: D1Database): Promise<number> {
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS n FROM posts WHERE ${LIVE_WHERE}`)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
 /**
  * Taxonomy counts for the hot path (the header renders on every page). Reads a
  * single pre-aggregated row from `settings` rather than scanning the join table
@@ -303,11 +346,16 @@ export async function getCachedTaxonomyCounts(
   return fresh;
 }
 
-/** Recompute and store both taxonomy count caches. Called after any post write. */
+/**
+ * Recompute and store the cached counts the public pages read without scanning:
+ * both taxonomy count lists and the live-post total. Called after any post
+ * write (create/update/delete), so the caches never drift from a content edit.
+ */
 export async function refreshTaxonomyCache(db: D1Database): Promise<void> {
   for (const column of ['categories', 'tags'] as const) {
     await setSetting(db, TAX_CACHE_KEY[column], await getTaxonomyCounts(db, column));
   }
+  await setSetting(db, LIVE_COUNT_KEY, await countLivePosts(db));
 }
 
 /**

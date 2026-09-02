@@ -3,5 +3,16 @@ Disallow: /admin
 Disallow: /login
 Disallow: /search
 Disallow: /api/
+# Archive filter/sort permutations multiply the same posts across countless
+# URLs and, being uncacheable-per-URL, drive most of the site's database reads.
+# Pagination itself (?page=N) stays crawlable so the full archive is indexable.
+Disallow: /*?sort=
+Disallow: /*&sort=
+Disallow: /*?q=
+Disallow: /*&q=
+
+# Bing/others honour Crawl-delay; Googlebot ignores it and is well-behaved.
+User-agent: bingbot
+Crawl-delay: 5
 
 Sitemap: https://changingireland.ie/sitemap.xml
