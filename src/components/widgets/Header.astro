@@ -130,7 +130,7 @@ const megaLinkClass =
   <div
     class:list={[
       'relative text-default py-3 px-3 min-[90rem]:px-6 mx-auto w-full min-[90rem]:flex min-[90rem]:items-center min-[90rem]:justify-center',
-      { 'max-w-7xl': !isFullWidth },
+      { 'max-w-7xl min-[90rem]:max-w-none': !isFullWidth },
     ]}
   >
     {
@@ -180,11 +180,11 @@ const megaLinkClass =
 
     <nav
       id="header-nav"
-      class="items-center w-full min-[90rem]:w-auto hidden min-[90rem]:flex text-default overflow-y-auto overflow-x-hidden min-[90rem]:overflow-visible min-[90rem]:justify-self-center"
+      class="items-center min-w-0 w-full min-[90rem]:w-auto hidden min-[90rem]:flex text-default overflow-y-auto overflow-x-hidden min-[90rem]:overflow-visible min-[90rem]:justify-self-center"
       aria-label="Main navigation"
     >
       <ul
-        class="flex flex-col min-[90rem]:flex-row min-[90rem]:self-center w-full min-[90rem]:w-auto text-xl min-[90rem]:text-[0.8125rem] tracking-[0.01rem] font-semibold min-[90rem]:justify-center"
+        class="flex flex-col min-[90rem]:flex-row min-[90rem]:flex-wrap min-[90rem]:self-center w-full min-[90rem]:w-auto text-xl min-[90rem]:text-[0.8125rem] tracking-[0.01rem] font-semibold min-[90rem]:justify-center"
       >
         {
           links.map(({ text, href, links: subLinks, mega }, index) => (
@@ -196,7 +196,7 @@ const megaLinkClass =
                     {href ? (
                       <a
                         class:list={[
-                          'hover:text-link dark:hover:text-white px-2 py-3 flex items-center whitespace-nowrap',
+                          'hover:text-link dark:hover:text-white px-2 min-[90rem]:px-1 py-3 flex items-center whitespace-nowrap',
                           { 'aw-link-active': href === currentPath },
                         ]}
                         href={href}
@@ -204,7 +204,7 @@ const megaLinkClass =
                         {text}
                       </a>
                     ) : (
-                      <span class="px-2 py-3 flex items-center whitespace-nowrap">{text}</span>
+                      <span class="px-2 min-[90rem]:px-1 py-3 flex items-center whitespace-nowrap">{text}</span>
                     )}
                     <button
                       type="button"
@@ -377,7 +377,7 @@ const megaLinkClass =
               ) : (
                 <a
                   class:list={[
-                    'hover:text-link dark:hover:text-white px-2 py-3 flex items-center whitespace-nowrap',
+                    'hover:text-link dark:hover:text-white px-2 min-[90rem]:px-1 py-3 flex items-center whitespace-nowrap',
                     { 'aw-link-active': href === currentPath },
                   ]}
                   href={href}

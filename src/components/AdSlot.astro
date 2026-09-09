@@ -27,7 +27,15 @@ const isPair = shown.length > 1;
 
 // Pinning the ratio in CSS as well as the attributes keeps the reserved box
 // correct once `w-full` overrides the intrinsic width.
-function sizing(ad: AdRow) {
+function sizing(ad: AdRow, paired = false) {
+  if (paired) {
+    return {
+      attrs: {},
+      className: 'h-full w-full object-contain',
+      style: undefined,
+    };
+  }
+
   const known = ad.image_width > 0 && ad.image_height > 0;
   return {
     attrs: known ? { width: ad.image_width, height: ad.image_height } : {},
@@ -50,9 +58,19 @@ function sizing(ad: AdRow) {
       </p>
       <div class:list={['grid gap-4', isPair && 'sm:grid-cols-2']}>
         {shown.map((ad) => {
-          const size = sizing(ad);
+          const size = sizing(ad, isPair);
+          const isEmailLink = ad.link_url.toLowerCase().startsWith('mailto:');
+          const frameClass = isPair
+            ? 'flex aspect-square items-center justify-center overflow-hidden rounded-sm border border-gray-100 bg-white'
+            : undefined;
           return ad.link_url ? (
-            <a href={ad.link_url} target="_blank" rel="noopener sponsored" aria-label={`Advertisement: ${ad.label}`}>
+            <a
+              href={ad.link_url}
+              target={isEmailLink ? undefined : '_blank'}
+              rel="noopener sponsored"
+              aria-label={`Advertisement: ${ad.label}`}
+              class={frameClass}
+            >
               <img
                 src={`/files/${ad.image_key}`}
                 alt={ad.label}
@@ -64,15 +82,17 @@ function sizing(ad: AdRow) {
               />
             </a>
           ) : (
-            <img
-              src={`/files/${ad.image_key}`}
-              alt={ad.label}
-              class={size.className}
-              style={size.style}
-              loading="lazy"
-              decoding="async"
-              {...size.attrs}
-            />
+            <div class={frameClass}>
+              <img
+                src={`/files/${ad.image_key}`}
+                alt={ad.label}
+                class={size.className}
+                style={size.style}
+                loading="lazy"
+                decoding="async"
+                {...size.attrs}
+              />
+            </div>
           );
         })}
       </div>

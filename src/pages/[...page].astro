@@ -27,12 +27,7 @@ const path = `/${(Astro.params.page ?? '').toString().replace(/^\/+|\/+$/g, '')}
 
 // The collection is absent entirely on sites that don't use editor-managed
 // pages (this one), where getCollection throws rather than returning [].
-let pages: CollectionEntry<'page'>[] = [];
-try {
-  pages = await getCollection('page', ({ data }) => !data.draft);
-} catch {
-  pages = [];
-}
+const pages: CollectionEntry<'page'>[] = await getCollection('page', ({ data }) => !data.draft).catch(() => []);
 
 const entry = pages.find((e) => pagePathFromId(e.id, e.data) === path);
 if (!entry) return new Response(null, { status: 404 });

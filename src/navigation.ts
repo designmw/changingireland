@@ -26,7 +26,7 @@ export const headerData = {
     {
       text: 'More News',
       href: getPermalink('/news'),
-      mega: 'news',
+      mega: 'news' as const,
       links: [
         { text: 'All News', href: getPermalink('/news') },
         { text: 'Videos', href: getPermalink('/videos') },
@@ -37,20 +37,32 @@ export const headerData = {
         { text: 'Inclusion', href: getPermalink('/category/inclusion') },
       ],
     },
-    { text: 'Magazines since 2001', href: getPermalink('/magazines'), mega: 'magazines' },
+    { text: 'Magazines since 2001', href: getPermalink('/magazines'), mega: 'magazines' as const },
     {
       text: 'Advice For Groups',
       href: getPermalink('/advice-for-groups'),
       links: [
         { text: 'Finding Volunteers', href: getPermalink('/advice-for-groups#finding-volunteers') },
-        { text: 'Free Professional Advice & Support', href: getPermalink('/advice-for-groups#finding-free-professional-advice-support') },
-        { text: 'Government Support to Communities', href: getPermalink('/advice-for-groups#government-support-to-communities-policy-strategy') },
+        {
+          text: 'Free Professional Advice & Support',
+          href: getPermalink('/advice-for-groups#finding-free-professional-advice-support'),
+        },
+        {
+          text: 'Government Support to Communities',
+          href: getPermalink('/advice-for-groups#government-support-to-communities-policy-strategy'),
+        },
         { text: 'Rural Development Supports', href: getPermalink('/advice-for-groups#rural-development-supports') },
-        { text: 'Rural Development Organisations', href: getPermalink('/advice-for-groups#rural-development-organisations') },
+        {
+          text: 'Rural Development Organisations',
+          href: getPermalink('/advice-for-groups#rural-development-organisations'),
+        },
         { text: 'Social Enterprise Supports', href: getPermalink('/advice-for-groups#social-enterprise-supports') },
         { text: 'Think-Tanks', href: getPermalink('/advice-for-groups#think-tanks') },
         { text: 'Research, Evaluation & Maps', href: getPermalink('/advice-for-groups#research-evaluation-maps') },
-        { text: 'Governance Advice, Resources & Bodies', href: getPermalink('/advice-for-groups#governance-advice-resources-bodies') },
+        {
+          text: 'Governance Advice, Resources & Bodies',
+          href: getPermalink('/advice-for-groups#governance-advice-resources-bodies'),
+        },
         { text: 'Apply for an Award', href: getPermalink('/advice-for-groups#apply-for-an-award') },
         { text: 'Celebrate Community!', href: getPermalink('/advice-for-groups#celebrate-community') },
       ],
@@ -59,10 +71,22 @@ export const headerData = {
       text: 'Support For Individuals',
       href: getPermalink('/support-for-individuals'),
       links: [
-        { text: 'Citizens Information Centres', href: getPermalink('/support-for-individuals#citizens-information-centres') },
-        { text: 'SICAP Support', href: getPermalink('/support-for-individuals#community-level-support-for-individuals-through-sicap') },
-        { text: 'Groups for Individuals to Join', href: getPermalink('/support-for-individuals#groups-for-individuals-to-join') },
-        { text: 'Employment, Education & Inclusion', href: getPermalink('/support-for-individuals#employment-education-inclusion-support') },
+        {
+          text: 'Citizens Information Centres',
+          href: getPermalink('/support-for-individuals#citizens-information-centres'),
+        },
+        {
+          text: 'SICAP Support',
+          href: getPermalink('/support-for-individuals#community-level-support-for-individuals-through-sicap'),
+        },
+        {
+          text: 'Groups for Individuals to Join',
+          href: getPermalink('/support-for-individuals#groups-for-individuals-to-join'),
+        },
+        {
+          text: 'Employment, Education & Inclusion',
+          href: getPermalink('/support-for-individuals#employment-education-inclusion-support'),
+        },
         { text: 'Health and Family Support', href: getPermalink('/support-for-individuals#health-and-family-support') },
       ],
     },

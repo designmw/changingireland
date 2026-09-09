@@ -11,8 +11,15 @@ const { message } = Astro.props;
 
 <div class="ci-toast" role="status">
   <span class="ci-toast-badge" aria-hidden="true">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-      <path class="ci-toast-check" d="M4.5 12.5l5 5 10-11" />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="3"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path class="ci-toast-check" d="M4.5 12.5l5 5 10-11"></path>
     </svg>
   </span>
   {message}

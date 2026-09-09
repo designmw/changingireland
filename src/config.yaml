@@ -78,7 +78,7 @@ apps:
 analytics:
   vendors:
     googleAnalytics:
-      id: "G-RY1GVWT8MP"
+      id: 'G-RY1GVWT8MP'
       # Google Analytics loads under Consent Mode v2: analytics/ads storage is
       # DENIED until the visitor accepts via the cookie banner. Setting an `id`
       # above is what makes the cookie banner appear.

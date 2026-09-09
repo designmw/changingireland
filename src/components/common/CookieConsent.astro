@@ -8,7 +8,7 @@ import { getPermalink } from '~/utils/permalinks';
 // localStorage and drives GA Consent Mode via gtag('consent', 'update', ...).
 // No GA id → no non-essential cookies → no banner needed.
 const gaId = ANALYTICS?.vendors?.googleAnalytics?.id ? String(ANALYTICS.vendors.googleAnalytics.id) : '';
-const privacyHref = getPermalink('/privacy');
+const privacyHref = getPermalink('/privacy-policy');
 
 // The banner logic is injected as a string via set:html rather than written as
 // raw <script> children. A <script> nested inside a {cond && (...)} block is

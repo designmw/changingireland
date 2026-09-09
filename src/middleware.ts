@@ -123,9 +123,9 @@ function legacyRedirect(url: URL): string | null {
  * thousands of archive/pagination URLs, each re-rendered once its entry
  * expires), so a 12x longer TTL is roughly a 12x cut in database work. The
  * cost is only that a content edit takes up to an hour to reach logged-out
- * visitors — fine for a magazine archive, and stale-while-revalidate serves the
- * old copy instantly while the first post-expiry request refreshes it. Editors
- * bypass the cache, so they always see their change immediately.
+ * visitors — fine for a magazine archive. The first post-expiry request
+ * refreshes it; the Workers Cache API does not support stale-while-revalidate.
+ * Editors bypass the cache, so they always see their change immediately.
  */
 const EDGE_TTL = 3600;
 
@@ -135,14 +135,19 @@ function isEdgeCacheable(request: Request, url: URL): boolean {
   const p = url.pathname;
   // Anything that is user-specific, mutating, or an auth surface stays uncached.
   if (p === '/api' || p.startsWith('/api/')) return false;
+  // Media has its own cache policy and varies by Accept/conditional headers.
+  // A URL-only page cache would bypass that negotiation and revalidation.
+  if (p === '/files' || p.startsWith('/files/') || p === '/_image') return false;
   if (p.startsWith('/admin') || p.startsWith('/login') || p.startsWith('/logout')) return false;
   return true;
 }
 
 function edgeCacheKey(url: string): Request {
-  // Key on the full URL only (query included, so ?page=N archives cache
-  // separately); anonymous responses carry no other varying input.
-  return new Request(url, { method: 'GET' });
+  // Keep pagination queries distinct. Bump the namespace when releasing page
+  // fixes so a deployment cannot serve HTML cached by the previous version.
+  const cacheUrl = new URL(url);
+  cacheUrl.searchParams.set('__ci_page_cache', '2');
+  return new Request(cacheUrl, { method: 'GET' });
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {
@@ -165,13 +170,16 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return withSecurityHeaders(await next());
   }
   const sessionId = getSessionId(context.cookies);
+  // DOM and Workers both declare CacheStorage; narrow the runtime extension
+  // here without changing the browser's CacheStorage type across the project.
+  const edgeCache = typeof caches === 'undefined' ? undefined : (caches as CacheStorage & { default?: Cache }).default;
 
   // Anonymous (no session cookie) + cacheable route: try the edge cache before
   // doing any database work at all.
   const canCache = !sessionId && isEdgeCacheable(context.request, context.url);
-  if (canCache) {
+  if (canCache && edgeCache) {
     try {
-      const hit = await caches.default.match(edgeCacheKey(context.request.url));
+      const hit = await edgeCache.match(edgeCacheKey(context.request.url));
       if (hit) {
         const served = new Response(hit.body, hit);
         served.headers.set('x-edge-cache', 'hit');
@@ -198,14 +206,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // This is a best-effort side effect: we cache a clone and always return the
   // original response with its body untouched, so a cache failure can never
   // break the page.
-  if (canCache && !context.locals.user && response.status === 200 && !response.headers.has('set-cookie')) {
+  if (canCache && edgeCache && !context.locals.user && response.status === 200 && !response.headers.has('set-cookie')) {
     try {
       const cacheCopy = response.clone();
-      cacheCopy.headers.set('Cache-Control', `public, max-age=0, s-maxage=${EDGE_TTL}, stale-while-revalidate=600`);
+      cacheCopy.headers.set('Cache-Control', `public, max-age=0, s-maxage=${EDGE_TTL}`);
       // Astro v6 exposes the Cloudflare ExecutionContext as locals.cfContext;
       // waitUntil lets the cache write finish after the response is sent.
       const cf = (context.locals as { cfContext?: { waitUntil?: (p: Promise<unknown>) => void } }).cfContext;
-      const put = caches.default.put(edgeCacheKey(context.request.url), cacheCopy);
+      const put = edgeCache.put(edgeCacheKey(context.request.url), cacheCopy);
       if (cf && typeof cf.waitUntil === 'function') cf.waitUntil(put);
       else await put;
     } catch {

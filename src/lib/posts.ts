@@ -100,7 +100,6 @@ export function metaDescription(text: string, limit = 155): string {
 // returns instead of temp-sorting the whole table (which is what
 // `ORDER BY COALESCE(...)` did, and what blew the D1 free-tier row budget).
 const ORDER = 'ORDER BY sort_at DESC';
-const ORDER_ASC = 'ORDER BY sort_at ASC';
 
 /**
  * A post is publicly visible when it's published AND its publish time has
@@ -148,7 +147,7 @@ export async function getPublishedPage(
     sort?: 'newest' | 'oldest';
   } = {}
 ): Promise<PostListPage> {
-  const perPage = opts.perPage ?? POSTS_PER_PAGE;
+  const perPage = Number.isSafeInteger(opts.perPage) && opts.perPage! > 0 ? opts.perPage! : POSTS_PER_PAGE;
   const where: string[] = [];
   const binds: (string | number)[] = [];
 
@@ -202,7 +201,8 @@ export async function getPublishedPage(
     total = count?.n ?? 0;
   }
   const totalPages = Math.max(1, Math.ceil(total / perPage));
-  const page = Math.min(Math.max(1, opts.page ?? 1), totalPages);
+  const requestedPage = Number.isSafeInteger(opts.page) && opts.page! > 0 ? opts.page! : 1;
+  const page = Math.min(requestedPage, totalPages);
 
   const { results } = await db
     .prepare(`SELECT p.* FROM ${from} WHERE ${whereSql} ${order} LIMIT ? OFFSET ?`)
@@ -321,9 +321,7 @@ export async function getCachedLiveCount(db: D1Database): Promise<number> {
 
 /** Count live posts directly (the range scan the cache exists to avoid). */
 async function countLivePosts(db: D1Database): Promise<number> {
-  const row = await db
-    .prepare(`SELECT COUNT(*) AS n FROM posts WHERE ${LIVE_WHERE}`)
-    .first<{ n: number }>();
+  const row = await db.prepare(`SELECT COUNT(*) AS n FROM posts WHERE ${LIVE_WHERE}`).first<{ n: number }>();
   return row?.n ?? 0;
 }
 

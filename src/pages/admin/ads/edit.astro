@@ -6,7 +6,7 @@ import AdminShell from '~/components/AdminShell.astro';
 import { Icon } from 'astro-icon/components';
 import { isAdmin, adminRedirect } from '~/lib/admin';
 import { getDb, getUploads } from '~/lib/auth';
-import { createAd, updateAd, getAdById, asAdWidth } from '~/lib/ads';
+import { createAd, updateAd, getAdById, asAdWidth, isSafeAdLink } from '~/lib/ads';
 
 if (!(await isAdmin(Astro))) return Astro.redirect(adminRedirect(Astro));
 
@@ -56,8 +56,8 @@ if (Astro.request.method === 'POST' && db) {
 
   if (!label) {
     error = 'Please name the ad (e.g. the advertiser) — it is also the image description for screen readers.';
-  } else if (linkUrl && !/^(https?:\/\/|\/)/.test(linkUrl)) {
-    error = 'The link must start with https:// (or / for a page on this site).';
+  } else if (!isSafeAdLink(linkUrl)) {
+    error = 'Enter a full website URL, a page on this site, or an email link beginning with mailto:';
   } else if (!id && !isFile(imageFile)) {
     error = 'Please choose the ad image.';
   } else if (isFile(imageFile) && !/\.(png|jpe?g|webp|gif)$/i.test(imageFile.name)) {
@@ -127,11 +127,17 @@ const metadata = { title: id ? 'Edit ad — Admin' : 'New ad — Admin', robots:
           <input
             id="link_url"
             name="link_url"
-            type="url"
+            type="text"
+            inputmode="url"
+            autocomplete="url"
             value={form.link_url}
-            placeholder="https://example.ie"
+            placeholder="https://example.ie or mailto:name@example.ie"
             class={inputClass}
           />
+          <p class="mt-1.5 text-xs text-muted">
+            For email, use <code>mailto:name@example.ie</code>. You can also add a subject, for example
+            <code>mailto:name@example.ie?subject=Advert enquiry</code>.
+          </p>
         </div>
 
         <div>
@@ -153,8 +159,8 @@ const metadata = { title: id ? 'Edit ad — Admin' : 'New ad — Admin', robots:
           <input type="hidden" name="image_height" value="0" />
           <p class="mt-1.5 text-xs text-muted">
             Recommended size depends on the layout chosen below:
-            <strong>full width 2432 × 608 px</strong>, <strong>half width 1200 × 800 px</strong>. Other shapes still
-            work, the ad just gets taller or shorter to suit.
+            <strong>full width 2432 × 608 px</strong>, <strong>half width 1200 × 1200 px</strong>. Other shapes still
+            work and are fitted inside the frame without cropping.
           </p>
         </div>
 
@@ -195,8 +201,7 @@ const metadata = { title: id ? 'Edit ad — Admin' : 'New ad — Admin', robots:
             </label>
           </div>
           <p class="mt-1.5 text-xs text-muted">
-            Two half-width ads pair up automatically, in the order set below. Give both the same shape so the row lines
-            up.
+            Two half-width ads pair up automatically, in the order set below, and appear in equal square frames.
           </p>
         </div>
 

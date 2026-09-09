@@ -24,6 +24,27 @@ export type AdWidth = 'full' | 'half';
 /** Narrow an arbitrary stored string to a known width, defaulting to full. */
 export const asAdWidth = (value: string | undefined | null): AdWidth => (value === 'half' ? 'half' : 'full');
 
+/**
+ * Only allow link types the public ad component can safely emit. Email links
+ * may include standard query parameters such as subject and body, but encoded
+ * line breaks are rejected to prevent mail-header injection.
+ */
+export function isSafeAdLink(value: string): boolean {
+  if (!value) return true;
+  if (value.startsWith('/') && !value.startsWith('//')) return true;
+
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'http:' || url.protocol === 'https:') return true;
+    if (url.protocol !== 'mailto:' || /%0a|%0d/i.test(value)) return false;
+
+    const address = decodeURIComponent(url.pathname);
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address);
+  } catch {
+    return false;
+  }
+}
+
 export async function getAllAds(db: D1Database): Promise<AdRow[]> {
   const { results } = await db.prepare('SELECT * FROM ads ORDER BY sort_order ASC, id ASC').all<AdRow>();
   return results ?? [];
