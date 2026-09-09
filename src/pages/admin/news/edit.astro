@@ -107,7 +107,9 @@ if (Astro.request.method === 'POST' && db) {
   // comes through instead and is treated as UTC.
   const publishedAt = String(fd.get('published_at_utc') ?? '').trim() || String(fd.get('published_at') ?? '').trim();
 
-  slug = slug ? slugify(slug) : slugify(title);
+  // Imported WordPress slugs may exceed the new-slug length limit. A content
+  // edit must keep the existing URL unless the editor changes this field.
+  slug = slug && slug === form.slug ? slug : slugify(slug || title);
   if (!excerpt) excerpt = makeExcerpt(content);
 
   form = {
@@ -230,15 +232,23 @@ const metadata = {
             class={inputClass}
             data-cat-input
           />
-          {/* Enhanced picker — hidden without JavaScript; the text input above
-              stays the source of truth for what the form submits. */}
+          {
+            /* Enhanced picker — hidden without JavaScript; the text input above
+              stays the source of truth for what the form submits. */
+          }
           <div data-cat-picker data-known={JSON.stringify(allCategories.map((c) => c.title))} class="hidden mt-2.5">
             <ul data-cat-chips class="flex flex-wrap gap-1.5 list-none m-0 p-0 empty:hidden mb-2.5"></ul>
             <p class="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Click to add or remove</p>
             <ul data-cat-known class="flex flex-wrap gap-1.5 list-none m-0 p-0 mb-2.5"></ul>
             <div class="flex gap-2 max-w-xs">
               <label for="cat-new" class="sr-only">New category</label>
-              <input id="cat-new" data-cat-new type="text" placeholder="New category…" class={`${inputClass} text-sm py-2`} />
+              <input
+                id="cat-new"
+                data-cat-new
+                type="text"
+                placeholder="New category…"
+                class={`${inputClass} text-sm py-2`}
+              />
               <button type="button" data-cat-add class="btn-secondary text-sm py-2 px-4 shrink-0">Add</button>
             </div>
           </div>
@@ -311,9 +321,7 @@ const metadata = {
             />
             <span class="text-sm font-medium text-default">Feature in Editor's Picks</span>
           </label>
-          <p class="mt-1.5 text-xs text-muted">
-            Editor's Picks appear in the featured section on the homepage.
-          </p>
+          <p class="mt-1.5 text-xs text-muted">Editor's Picks appear in the featured section on the homepage.</p>
         </div>
 
         <div>
@@ -343,10 +351,54 @@ const metadata = {
           <p class="mt-1.5 text-xs text-muted">Generated from the title if left blank.</p>
         </div>
 
-        <div>
+        <div data-featured-image>
           <label for="image_url" class={labelClass}>
             Featured image <span class="font-normal text-muted">(optional)</span>
           </label>
+          {
+            /* Preview + upload/choose buttons are enhanced by the page script;
+              the text input below is what the form submits and the no-JS
+              fallback. */
+          }
+          <div
+            data-featured-preview
+            class:list={[
+              'mb-2.5 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 aspect-[16/10]',
+              !form.image_url && 'hidden',
+            ]}
+          >
+            <img
+              data-featured-preview-img
+              src={form.image_url || undefined}
+              alt=""
+              class="h-full w-full object-cover"
+              loading="lazy"
+            />
+          </div>
+          <div data-featured-actions class="hidden mb-2.5 flex-wrap gap-2">
+            <button
+              type="button"
+              data-featured-upload
+              class="btn-secondary text-sm py-2 px-3.5 inline-flex items-center"
+            >
+              <Icon name="tabler:upload" class="h-4 w-4 mr-1.5" /> Upload
+            </button>
+            <button
+              type="button"
+              data-featured-choose
+              class="btn-secondary text-sm py-2 px-3.5 inline-flex items-center"
+            >
+              <Icon name="tabler:photo" class="h-4 w-4 mr-1.5" /> Choose existing
+            </button>
+            <button
+              type="button"
+              data-featured-remove
+              class="hidden text-sm font-semibold text-red-700 hover:underline px-2 py-2"
+            >
+              Remove
+            </button>
+          </div>
+          <p data-featured-status class="mb-2 text-xs text-muted empty:hidden" aria-live="polite"></p>
           <input
             id="image_url"
             name="image_url"
@@ -355,7 +407,9 @@ const metadata = {
             placeholder="/uploads/2026/05/photo.webp"
             class={inputClass}
           />
-          <p class="mt-1.5 text-xs text-muted">Path or URL of an image already on the site.</p>
+          <p class="mt-1.5 text-xs text-muted">
+            Upload a photo from your computer, pick one already on the site, or paste an image path or URL.
+          </p>
         </div>
 
         <div>
@@ -378,10 +432,53 @@ const metadata = {
         </button>
       </div>
     </form>
+
+    {
+      /* Featured-image library. Opened by "Choose existing" above; lists the
+        images in this article first, then recent admin uploads from R2. */
+    }
+    <dialog
+      data-featured-dialog
+      class="rounded-2xl border border-gray-200 shadow-2xl p-0 w-[56rem] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] backdrop:bg-black/40 m-auto"
+    >
+      <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-200">
+        <h2 class="font-heading font-extrabold text-lg text-heading m-0">Choose a featured image</h2>
+        <button
+          type="button"
+          data-featured-close
+          aria-label="Close"
+          class="inline-flex items-center justify-center w-9 h-9 rounded-full text-muted hover:bg-gray-100 hover:text-default"
+        >
+          <Icon name="tabler:x" class="h-5 w-5" />
+        </button>
+      </div>
+      <div class="p-5 overflow-y-auto max-h-[calc(100vh-7.5rem)]">
+        <section data-featured-article-section class="hidden mb-6">
+          <p class="mb-2 text-xs font-bold uppercase tracking-wider text-muted">Images in this article</p>
+          <ul
+            data-featured-article-grid
+            class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5 list-none m-0 p-0"
+          >
+          </ul>
+        </section>
+        <section>
+          <p class="mb-2 text-xs font-bold uppercase tracking-wider text-muted">Recent uploads</p>
+          <p data-featured-library-status class="text-sm text-muted empty:hidden">Loading…</p>
+          <ul
+            data-featured-library-grid
+            class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5 list-none m-0 p-0"
+          >
+          </ul>
+        </section>
+      </div>
+    </dialog>
   </AdminShell>
 </Layout>
 
 <script>
+  import { toResponsiveWebp } from '~/lib/webp-client';
+  import { articleImages, thumbUrl, type PickerImage } from '~/lib/featured-image';
+
   // Category picker: chips for the article's categories, pills for every
   // existing category (click to toggle), and an add-new field. The plain
   // comma-separated text input stays the submitted value and the no-JS
@@ -390,6 +487,8 @@ const metadata = {
     const input = document.querySelector<HTMLInputElement>('input[data-cat-input]');
     const picker = document.querySelector<HTMLElement>('[data-cat-picker]');
     if (!input || !picker || picker.dataset.enhanced === 'yes') return;
+    // Preserve the null check inside the nested event-handler closures below.
+    const categoryInput = input;
     picker.dataset.enhanced = 'yes';
 
     const known: string[] = JSON.parse(picker.dataset.known || '[]');
@@ -398,7 +497,10 @@ const metadata = {
     const newInput = picker.querySelector<HTMLInputElement>('[data-cat-new]')!;
     const addBtn = picker.querySelector<HTMLButtonElement>('[data-cat-add]')!;
 
-    let cats = input.value.split(',').map((s) => s.trim()).filter(Boolean);
+    let cats = categoryInput.value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     const has = (c: string) => cats.some((x) => x.toLowerCase() === c.toLowerCase());
     const add = (c: string) => {
       if (c && !has(c)) {
@@ -412,7 +514,7 @@ const metadata = {
     };
 
     function sync() {
-      input.value = cats.join(', ');
+      categoryInput.value = cats.join(', ');
 
       chips.textContent = '';
       cats.forEach((c) => {
@@ -534,12 +636,202 @@ const metadata = {
     });
   }
 
+  // Featured image: preview of the current value, an upload button (same R2
+  // pipeline as the editor's image button, responsive WebP made in the
+  // browser), and a library dialog listing this article's images plus recent
+  // uploads. The plain text input stays the submitted value and works alone.
+  function initFeaturedImage() {
+    const root = document.querySelector<HTMLElement>('[data-featured-image]');
+    const dialog = document.querySelector<HTMLDialogElement>('dialog[data-featured-dialog]');
+    if (!root || !dialog || root.dataset.enhanced === 'yes') return;
+    root.dataset.enhanced = 'yes';
+    // Preserve the null check inside the event-handler closures below.
+    const libraryDialog = dialog;
+
+    const input = root.querySelector<HTMLInputElement>('input[name="image_url"]')!;
+    const preview = root.querySelector<HTMLElement>('[data-featured-preview]')!;
+    const previewImg = root.querySelector<HTMLImageElement>('[data-featured-preview-img]')!;
+    const actions = root.querySelector<HTMLElement>('[data-featured-actions]')!;
+    const uploadBtn = root.querySelector<HTMLButtonElement>('[data-featured-upload]')!;
+    const chooseBtn = root.querySelector<HTMLButtonElement>('[data-featured-choose]')!;
+    const removeBtn = root.querySelector<HTMLButtonElement>('[data-featured-remove]')!;
+    const status = root.querySelector<HTMLElement>('[data-featured-status]')!;
+
+    const closeBtn = libraryDialog.querySelector<HTMLButtonElement>('[data-featured-close]')!;
+    const articleSection = libraryDialog.querySelector<HTMLElement>('[data-featured-article-section]')!;
+    const articleGrid = libraryDialog.querySelector<HTMLUListElement>('[data-featured-article-grid]')!;
+    const libraryStatus = libraryDialog.querySelector<HTMLElement>('[data-featured-library-status]')!;
+    const libraryGrid = libraryDialog.querySelector<HTMLUListElement>('[data-featured-library-grid]')!;
+
+    const setStatus = (text: string, isError = false) => {
+      status.textContent = text;
+      status.classList.toggle('text-red-700', isError);
+      status.classList.toggle('text-muted', !isError);
+    };
+
+    function render() {
+      const url = input.value.trim();
+      if (url) {
+        if (previewImg.getAttribute('src') !== url) previewImg.src = url;
+        preview.classList.remove('hidden');
+        removeBtn.classList.remove('hidden');
+      } else {
+        previewImg.removeAttribute('src');
+        preview.classList.add('hidden');
+        removeBtn.classList.add('hidden');
+      }
+    }
+    const setUrl = (url: string) => {
+      input.value = url;
+      render();
+    };
+
+    previewImg.addEventListener('error', () => {
+      if (input.value.trim()) setStatus('That image could not be loaded. Check the path or URL.', true);
+    });
+    previewImg.addEventListener('load', () => {
+      if (status.textContent?.startsWith('That image')) setStatus('');
+    });
+    input.addEventListener('input', () => {
+      setStatus('');
+      render();
+    });
+    removeBtn.addEventListener('click', () => {
+      setUrl('');
+      setStatus('');
+      input.focus();
+    });
+
+    // Recent uploads from /api/admin/uploads, fetched once per page and reset
+    // after an upload so the new file shows up.
+    let library: PickerImage[] | null = null;
+
+    // ── Upload ─────────────────────────────────────────────────────────────
+    function pickFile(): Promise<File | null> {
+      return new Promise((resolve) => {
+        const picker = document.createElement('input');
+        picker.type = 'file';
+        picker.accept = 'image/png,image/jpeg,image/webp,image/gif';
+        picker.addEventListener('change', () => resolve(picker.files?.[0] ?? null));
+        // A cancelled picker fires no 'change'; nothing waits on it, so nothing leaks.
+        picker.click();
+      });
+    }
+
+    uploadBtn.addEventListener('click', async () => {
+      const file = await pickFile();
+      if (!file) return;
+      uploadBtn.disabled = true;
+      chooseBtn.disabled = true;
+      setStatus('Uploading…');
+      try {
+        const upload = await toResponsiveWebp(file);
+        const body = new FormData();
+        body.append('image', upload.primary);
+        upload.variants.forEach(({ width, file: variant }) => body.append(`image_${width}`, variant));
+        const res = await fetch('/api/admin/upload', { method: 'POST', body });
+        const json = (await res.json()) as { url?: string; error?: string };
+        if (!res.ok || !json.url) {
+          setStatus(json.error ?? 'Upload failed. Try a smaller image.', true);
+          return;
+        }
+        setUrl(json.url);
+        library = null; // the new file belongs in the library next time it opens
+        setStatus('Uploaded. Save the article to keep it.');
+      } catch {
+        setStatus('Upload failed. Check your connection and try again.', true);
+      } finally {
+        uploadBtn.disabled = false;
+        chooseBtn.disabled = false;
+      }
+    });
+
+    // ── Library dialog ─────────────────────────────────────────────────────
+    function tile(img: PickerImage): HTMLLIElement {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      const on = img.url === input.value.trim();
+      b.setAttribute('aria-pressed', String(on));
+      b.setAttribute('aria-label', `Use ${img.name}`);
+      b.title = img.name;
+      b.className = on
+        ? 'block w-full aspect-[4/3] overflow-hidden rounded-lg ring-3 ring-primary ring-offset-2 bg-gray-100'
+        : 'block w-full aspect-[4/3] overflow-hidden rounded-lg border border-gray-200 bg-gray-100 hover:ring-2 hover:ring-primary hover:ring-offset-2 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:outline-none';
+      const pic = document.createElement('img');
+      pic.src = thumbUrl(img.url);
+      pic.alt = '';
+      pic.loading = 'lazy';
+      pic.className = 'h-full w-full object-cover';
+      b.appendChild(pic);
+      b.addEventListener('click', () => {
+        setUrl(img.url);
+        setStatus('');
+        libraryDialog.close();
+        chooseBtn.focus();
+      });
+      li.appendChild(b);
+      return li;
+    }
+
+    /** Image URLs used in the article body, from the always-synced textarea. */
+    function imagesInArticle(): PickerImage[] {
+      const source = document.querySelector<HTMLTextAreaElement>('textarea[name="content"]');
+      return source ? articleImages(source.value) : [];
+    }
+
+    function renderLibrary() {
+      articleGrid.textContent = '';
+      const inArticle = imagesInArticle();
+      inArticle.forEach((img) => articleGrid.appendChild(tile(img)));
+      articleSection.classList.toggle('hidden', inArticle.length === 0);
+
+      libraryGrid.textContent = '';
+      if (!library) return;
+      library.forEach((img) => libraryGrid.appendChild(tile(img)));
+      libraryStatus.textContent = library.length ? '' : 'No uploads yet. Use the Upload button to add one.';
+    }
+
+    async function loadLibrary() {
+      if (library) return;
+      libraryStatus.textContent = 'Loading…';
+      try {
+        const res = await fetch('/api/admin/uploads');
+        const json = (await res.json()) as { images?: PickerImage[]; error?: string };
+        if (!res.ok || !json.images) throw new Error(json.error ?? 'failed');
+        library = json.images;
+      } catch {
+        libraryStatus.textContent = 'Could not load recent uploads. Close and try again.';
+        return;
+      }
+      renderLibrary();
+    }
+
+    chooseBtn.addEventListener('click', () => {
+      renderLibrary();
+      libraryDialog.showModal();
+      void loadLibrary();
+    });
+    closeBtn.addEventListener('click', () => libraryDialog.close());
+    libraryDialog.addEventListener('click', (e) => {
+      // Backdrop click: the dialog box itself is the only child that can be the
+      // target when the click lands outside the panel.
+      if (e.target === libraryDialog) libraryDialog.close();
+    });
+
+    actions.classList.remove('hidden');
+    actions.classList.add('flex');
+    render();
+  }
+
   initCatPicker();
   initAuthorPicker();
   initPublishedAt();
+  initFeaturedImage();
   document.addEventListener('astro:page-load', () => {
     initCatPicker();
     initAuthorPicker();
     initPublishedAt();
+    initFeaturedImage();
   });
 </script>

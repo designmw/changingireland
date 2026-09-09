@@ -25,7 +25,8 @@
     "check:golive": "node scripts/check-golive.mjs",
     "fix": "npm run fix:eslint && npm run fix:prettier",
     "fix:eslint": "eslint --fix .",
-    "fix:prettier": "prettier -w ."
+    "fix:prettier": "prettier -w .",
+    "test": "vitest run"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.1",
@@ -63,6 +64,7 @@
     "eslint": "^10.4.0",
     "eslint-plugin-astro": "^1.7.0",
     "globals": "^17.6.0",
+    "happy-dom": "^20.14.0",
     "js-yaml": "^4.1.1",
     "mdast-util-to-string": "^4.0.0",
     "prettier": "^3.8.3",
@@ -73,6 +75,7 @@
     "tailwindcss": "^4.3.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.60.0",
+    "vitest": "^5.0.0",
     "wrangler": "^4.83.0"
   },
   "overrides": {
