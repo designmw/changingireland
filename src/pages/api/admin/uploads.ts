@@ -6,9 +6,10 @@ import { getUploads } from '~/lib/auth';
 import { listRecentUploads } from '~/lib/upload-library';
 
 /**
- * Recent admin image uploads, for the featured-image picker on the article
- * editor: `{ images: [{ url, name, uploaded }] }`, newest first. Editor-gated,
- * like the upload route itself. See src/lib/upload-library.ts.
+ * The site's image library for the featured-image picker on the article
+ * editor: `{ images: [{ url, name, uploaded }] }`, newest first, one entry per
+ * picture across admin uploads and the WordPress archive. Editor-gated, like
+ * the upload route itself. See src/lib/upload-library.ts.
  */
 export const GET: APIRoute = async (context) => {
   if (!(await isEditor(context))) {

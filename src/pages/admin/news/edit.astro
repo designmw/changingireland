@@ -462,13 +462,29 @@ const metadata = {
           </ul>
         </section>
         <section>
-          <p class="mb-2 text-xs font-bold uppercase tracking-wider text-muted">Recent uploads</p>
-          <p data-featured-library-status class="text-sm text-muted empty:hidden">Loading…</p>
+          <div class="flex flex-wrap items-end justify-between gap-3 mb-3">
+            <p class="text-xs font-bold uppercase tracking-wider text-muted m-0">Image library</p>
+            <div class="w-full sm:w-72">
+              <label for="featured-search" class="sr-only">Search the image library</label>
+              <input
+                id="featured-search"
+                data-featured-search
+                type="search"
+                placeholder="Search by filename or year…"
+                autocomplete="off"
+                class={`${inputClass} text-sm py-2`}
+              />
+            </div>
+          </div>
+          <p data-featured-library-status class="text-sm text-muted empty:hidden" aria-live="polite">Loading…</p>
           <ul
             data-featured-library-grid
             class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5 list-none m-0 p-0"
           >
           </ul>
+          <div class="mt-4 text-center">
+            <button type="button" data-featured-more class="hidden btn-secondary text-sm py-2 px-4"> Show more </button>
+          </div>
         </section>
       </div>
     </dialog>
@@ -477,7 +493,7 @@ const metadata = {
 
 <script>
   import { toResponsiveWebp } from '~/lib/webp-client';
-  import { articleImages, thumbUrl, type PickerImage } from '~/lib/featured-image';
+  import { articleImages, matchesQuery, thumbUrl, type PickerImage } from '~/lib/featured-image';
 
   // Category picker: chips for the article's categories, pills for every
   // existing category (click to toggle), and an add-new field. The plain
@@ -662,6 +678,8 @@ const metadata = {
     const articleGrid = libraryDialog.querySelector<HTMLUListElement>('[data-featured-article-grid]')!;
     const libraryStatus = libraryDialog.querySelector<HTMLElement>('[data-featured-library-status]')!;
     const libraryGrid = libraryDialog.querySelector<HTMLUListElement>('[data-featured-library-grid]')!;
+    const searchInput = libraryDialog.querySelector<HTMLInputElement>('[data-featured-search]')!;
+    const moreBtn = libraryDialog.querySelector<HTMLButtonElement>('[data-featured-more]')!;
 
     const setStatus = (text: string, isError = false) => {
       status.textContent = text;
@@ -780,6 +798,21 @@ const metadata = {
       return source ? articleImages(source.value) : [];
     }
 
+    // The library can run to a few thousand pictures. Tiles are appended in
+    // pages of PAGE so the dialog opens instantly; "Show more" adds the next
+    // page and the search box filters the whole list client-side.
+    const PAGE = 60;
+    let shown = 0;
+    let filtered: PickerImage[] = [];
+
+    function appendPage() {
+      const next = filtered.slice(shown, shown + PAGE);
+      next.forEach((img) => libraryGrid.appendChild(tile(img)));
+      shown += next.length;
+      moreBtn.classList.toggle('hidden', shown >= filtered.length);
+      moreBtn.textContent = `Show more (${filtered.length - shown} left)`;
+    }
+
     function renderLibrary() {
       articleGrid.textContent = '';
       const inArticle = imagesInArticle();
@@ -787,10 +820,21 @@ const metadata = {
       articleSection.classList.toggle('hidden', inArticle.length === 0);
 
       libraryGrid.textContent = '';
+      shown = 0;
       if (!library) return;
-      library.forEach((img) => libraryGrid.appendChild(tile(img)));
-      libraryStatus.textContent = library.length ? '' : 'No uploads yet. Use the Upload button to add one.';
+      const query = searchInput.value.trim();
+      filtered = query ? library.filter((img) => matchesQuery(img, query)) : library;
+      libraryStatus.textContent =
+        library.length === 0
+          ? 'No images yet. Use the Upload button to add one.'
+          : filtered.length === 0
+            ? 'No images match that search.'
+            : `${filtered.length.toLocaleString('en-IE')} image${filtered.length === 1 ? '' : 's'}${query ? ' found' : ''}`;
+      appendPage();
     }
+
+    searchInput.addEventListener('input', renderLibrary);
+    moreBtn.addEventListener('click', appendPage);
 
     async function loadLibrary() {
       if (library) return;
@@ -801,7 +845,7 @@ const metadata = {
         if (!res.ok || !json.images) throw new Error(json.error ?? 'failed');
         library = json.images;
       } catch {
-        libraryStatus.textContent = 'Could not load recent uploads. Close and try again.';
+        libraryStatus.textContent = 'Could not load the image library. Close and try again.';
         return;
       }
       renderLibrary();

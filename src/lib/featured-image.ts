@@ -35,3 +35,15 @@ export function articleImages(html: string): PickerImage[] {
 export function thumbUrl(url: string): string {
   return url.startsWith('/files/') ? `${url}?w=320` : url;
 }
+
+/**
+ * Library search: every whitespace-separated word of `query` must appear in
+ * the image's name or URL, case-insensitively, in any order. An empty query
+ * matches everything.
+ */
+export function matchesQuery(image: PickerImage, query: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = `${image.name} ${image.url}`.toLowerCase();
+  return words.every((w) => haystack.includes(w));
+}

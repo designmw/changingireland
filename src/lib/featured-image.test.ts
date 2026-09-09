@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import { articleImages, thumbUrl } from './featured-image';
+import { articleImages, matchesQuery, thumbUrl } from './featured-image';
 
 describe('articleImages', () => {
   it('lists image URLs in document order with a display name', () => {
@@ -38,5 +38,31 @@ describe('thumbUrl', () => {
   it('leaves other URLs alone', () => {
     expect(thumbUrl('https://example.org/a.jpg')).toBe('https://example.org/a.jpg');
     expect(thumbUrl('/uploads/2026/05/photo.webp')).toBe('/uploads/2026/05/photo.webp');
+  });
+});
+
+describe('matchesQuery', () => {
+  const img = {
+    url: '/files/uploads/2021/12/Protesters-outside-the-Dail.jpg',
+    name: 'Protesters-outside-the-Dail.jpg',
+  };
+
+  it('matches everything on an empty or blank query', () => {
+    expect(matchesQuery(img, '')).toBe(true);
+    expect(matchesQuery(img, '   ')).toBe(true);
+  });
+
+  it('is case-insensitive and word-order-insensitive', () => {
+    expect(matchesQuery(img, 'dail protesters')).toBe(true);
+    expect(matchesQuery(img, 'DAIL')).toBe(true);
+  });
+
+  it('requires every word to match', () => {
+    expect(matchesQuery(img, 'protesters garda')).toBe(false);
+  });
+
+  it('searches the folder path too, so a year or month narrows the list', () => {
+    expect(matchesQuery(img, '2021/12')).toBe(true);
+    expect(matchesQuery(img, '2019')).toBe(false);
   });
 });
