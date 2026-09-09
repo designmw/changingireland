@@ -25,6 +25,7 @@
  */
 import { ELEMENT_NODE, transformSync, walkSync, type Node } from 'ultrahtml';
 import sanitize from 'ultrahtml/transformers/sanitize';
+import { decodeHTMLAttribute } from 'entities';
 
 /** Tags an article body may contain. Anything else is unwrapped or dropped. */
 const ALLOW_ELEMENTS = [
@@ -165,8 +166,10 @@ const IFRAME_HOSTS = [
  * inside a scheme, so `java\nscript:alert(1)` runs as `javascript:`.
  */
 function isSafeUrl(value: string): boolean {
-  // eslint-disable-next-line no-control-regex
-  const url = value.replace(/[\u0000-\u0020]/g, '').toLowerCase();
+  const url = decodeHTMLAttribute(value)
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0020]/g, '')
+    .toLowerCase();
   if (url === '') return false;
   if (url.startsWith('/') || url.startsWith('#') || url.startsWith('?')) return true;
   // A colon before any slash/question/hash means an explicit scheme.
@@ -182,7 +185,7 @@ function isAllowedIframe(value: string): boolean {
   try {
     // Protocol-relative embeds ("//www.youtube.com/…") are still common in
     // imported WordPress markup, so give the parser a base to resolve against.
-    const url = new URL(value, 'https://changingireland.ie');
+    const url = new URL(decodeHTMLAttribute(value), 'https://changingireland.ie');
     return url.protocol === 'https:' && IFRAME_HOSTS.includes(url.hostname);
   } catch {
     return false;
@@ -204,7 +207,16 @@ function isAllowedIframe(value: string): boolean {
 function enforceAttributes(doc: Node): Node {
   walkSync(doc, (node) => {
     if (node.type !== ELEMENT_NODE) return;
+    node.name = node.name.toLowerCase();
     const attrs = node.attributes as Record<string, string>;
+    // HTML attribute names are case-insensitive. Canonicalise before validation.
+    for (const name of Object.keys(attrs)) {
+      const lower = name.toLowerCase();
+      if (name !== lower) {
+        if (!(lower in attrs)) attrs[lower] = attrs[name];
+        delete attrs[name];
+      }
+    }
 
     // Deny by default: an attribute survives only if this tag is listed for it.
     for (const name of Object.keys(attrs)) {

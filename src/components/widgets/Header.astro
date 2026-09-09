@@ -6,7 +6,7 @@ import ToggleMenu from '~/components/common/ToggleMenu.astro';
 
 import { getHomePermalink, trimSlash } from '~/utils/permalinks';
 import { getDb } from '~/lib/auth';
-import { getCachedTaxonomyCounts, getPublishedPosts, type PostRow } from '~/lib/posts';
+import { getCachedTaxonomyCounts, getPublishedPosts, type PostSummary } from '~/lib/posts';
 import { hiddenNavCategories } from '~/navigation';
 import { getAllMagazines, type MagazineRow } from '~/lib/magazines';
 
@@ -53,7 +53,7 @@ const todayShort = new Date().toLocaleDateString('en-IE', {
 // Mega-menu content, straight from D1 (best-effort: with no database the
 // panels fall back to the plain link lists).
 let megaCategories: { slug: string; title: string; count: number }[] = [];
-let megaPosts: PostRow[] = [];
+let megaPosts: PostSummary[] = [];
 let megaMagazines: MagazineRow[] = [];
 try {
   const db = await getDb();

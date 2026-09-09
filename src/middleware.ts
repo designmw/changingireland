@@ -1,5 +1,6 @@
 import { defineMiddleware } from 'astro:middleware';
 import { getDb, getSessionId, getSessionUser } from '~/lib/auth';
+import { withContentCache, getContentState, pageCacheKey, contentTtl, type ContentState } from '~/lib/content-cache';
 
 /**
  * Security headers.
@@ -107,25 +108,9 @@ function legacyRedirect(url: URL): string | null {
   return null;
 }
 
-/**
- * Edge cache for anonymous GETs.
- *
- * Every public page is `prerender = false`, so without this each request —
- * including every bot crawl — re-runs the D1 queries. Anonymous, cacheable
- * responses are stored in the colo cache (caches.default) for a few minutes so
- * repeat and crawler traffic is served without touching the database. Logged-in
- * editors (a session cookie present) bypass it entirely and always see fresh
- * content, and an admin edit propagates to anonymous visitors within EDGE_TTL
- * seconds.
- *
- * One hour, not the five minutes it used to be: the row budget on the Workers
- * Free plan is spent almost entirely on cache *misses* (a crawler walking
- * thousands of archive/pagination URLs, each re-rendered once its entry
- * expires), so a 12x longer TTL is roughly a 12x cut in database work. The
- * cost is only that a content edit takes up to an hour to reach logged-out
- * visitors — fine for a magazine archive. The first post-expiry request
- * refreshes it; the Workers Cache API does not support stale-while-revalidate.
- * Editors bypass the cache, so they always see their change immediately.
+/** Public HTML is keyed by an atomic D1 revision and the publication clock.
+ * One small indexed query precedes cache hits so withdrawals are effective
+ * across every colo. No module-level or eventually-consistent revision cache.
  */
 const EDGE_TTL = 3600;
 
@@ -134,6 +119,7 @@ function isEdgeCacheable(request: Request, url: URL): boolean {
   if (import.meta.env.DEV) return false;
   const p = url.pathname;
   // Anything that is user-specific, mutating, or an auth surface stays uncached.
+  if (p === '/api/search') return (url.searchParams.get('q') ?? '').trim().length >= 2;
   if (p === '/api' || p.startsWith('/api/')) return false;
   // Media has its own cache policy and varies by Accept/conditional headers.
   // A URL-only page cache would bypass that negotiation and revalidation.
@@ -142,89 +128,104 @@ function isEdgeCacheable(request: Request, url: URL): boolean {
   return true;
 }
 
-function edgeCacheKey(url: string): Request {
-  // Keep pagination queries distinct. Bump the namespace when releasing page
-  // fixes so a deployment cannot serve HTML cached by the previous version.
-  const cacheUrl = new URL(url);
-  cacheUrl.searchParams.set('__ci_page_cache', '2');
-  return new Request(cacheUrl, { method: 'GET' });
-}
+export const onRequest = defineMiddleware((context, next) =>
+  withContentCache(async () => {
+    const redirectTo = legacyRedirect(context.url);
+    if (redirectTo) return withSecurityHeaders(context.redirect(redirectTo, 301));
 
-export const onRequest = defineMiddleware(async (context, next) => {
-  const redirectTo = legacyRedirect(context.url);
-  if (redirectTo) return withSecurityHeaders(context.redirect(redirectTo, 301));
+    context.locals.user = null;
 
-  context.locals.user = null;
+    // Dev-only auth bypass: /admin opens without logging in. import.meta.env.DEV
+    // is false in production builds, so this never ships. Add ?nobypass=1 to any
+    // URL to see the real logged-out experience locally.
+    if (import.meta.env.DEV && !context.url.searchParams.has('nobypass')) {
+      context.locals.user = {
+        id: 0,
+        email: 'dev@changingireland.ie',
+        username: 'devbypass',
+        first_name: 'Dev',
+        last_name: 'Preview',
+      };
+      return withSecurityHeaders(await next());
+    }
+    const sessionId = getSessionId(context.cookies);
+    // DOM and Workers both declare CacheStorage; narrow the runtime extension
+    // here without changing the browser's CacheStorage type across the project.
+    const edgeCache =
+      typeof caches === 'undefined' ? undefined : (caches as CacheStorage & { default?: Cache }).default;
 
-  // Dev-only auth bypass: /admin opens without logging in. import.meta.env.DEV
-  // is false in production builds, so this never ships. Add ?nobypass=1 to any
-  // URL to see the real logged-out experience locally.
-  if (import.meta.env.DEV && !context.url.searchParams.has('nobypass')) {
-    context.locals.user = {
-      id: 0,
-      email: 'dev@changingireland.ie',
-      username: 'devbypass',
-      first_name: 'Dev',
-      last_name: 'Preview',
-    };
-    return withSecurityHeaders(await next());
-  }
-  const sessionId = getSessionId(context.cookies);
-  // DOM and Workers both declare CacheStorage; narrow the runtime extension
-  // here without changing the browser's CacheStorage type across the project.
-  const edgeCache = typeof caches === 'undefined' ? undefined : (caches as CacheStorage & { default?: Cache }).default;
-
-  // Anonymous (no session cookie) + cacheable route: try the edge cache before
-  // doing any database work at all.
-  const canCache = !sessionId && isEdgeCacheable(context.request, context.url);
-  if (canCache && edgeCache) {
-    try {
-      const hit = await edgeCache.match(edgeCacheKey(context.request.url));
-      if (hit) {
-        const served = new Response(hit.body, hit);
-        served.headers.set('x-edge-cache', 'hit');
-        return served;
+    // Validate the global content revision before reusing anonymous HTML.
+    const db = await getDb();
+    let cacheState: ContentState | undefined;
+    if (!sessionId && db && isEdgeCacheable(context.request, context.url)) {
+      try {
+        cacheState = await getContentState(db);
+      } catch {
+        // Never serve potentially withdrawn content if revision validation fails.
       }
-    } catch {
-      // Cache API unavailable (e.g. astro dev) — fall through to a live render.
     }
-  }
-
-  const db = await getDb();
-  if (db && sessionId) {
-    try {
-      context.locals.user = await getSessionUser(db, sessionId);
-    } catch {
-      // table missing (migrations not applied yet) — treat as logged out
+    const canCache = !!cacheState;
+    const cacheKey = cacheState ? pageCacheKey(context.url, cacheState) : undefined;
+    if (canCache && edgeCache) {
+      try {
+        const hit = await edgeCache.match(cacheKey!);
+        if (hit) {
+          const served = new Response(hit.body, hit);
+          served.headers.set('x-edge-cache', 'hit');
+          served.headers.set('Cache-Control', 'private, no-cache');
+          return served;
+        }
+      } catch {
+        // Cache API unavailable (e.g. astro dev) — fall through to a live render.
+      }
     }
-  }
 
-  const response = withSecurityHeaders(await next());
-
-  // Store a copy for the next anonymous visitor. Never cache an error, a
-  // response that sets a cookie, or anything rendered for a logged-in user.
-  // This is a best-effort side effect: we cache a clone and always return the
-  // original response with its body untouched, so a cache failure can never
-  // break the page.
-  if (canCache && edgeCache && !context.locals.user && response.status === 200 && !response.headers.has('set-cookie')) {
-    try {
-      const cacheCopy = response.clone();
-      cacheCopy.headers.set('Cache-Control', `public, max-age=0, s-maxage=${EDGE_TTL}`);
-      // Astro v6 exposes the Cloudflare ExecutionContext as locals.cfContext;
-      // waitUntil lets the cache write finish after the response is sent.
-      const cf = (context.locals as { cfContext?: { waitUntil?: (p: Promise<unknown>) => void } }).cfContext;
-      const put = edgeCache.put(edgeCacheKey(context.request.url), cacheCopy);
-      if (cf && typeof cf.waitUntil === 'function') cf.waitUntil(put);
-      else await put;
-    } catch {
-      // Cache write failed — the original response below is still served.
+    if (db && sessionId) {
+      try {
+        context.locals.user = await getSessionUser(db, sessionId);
+      } catch {
+        // table missing (migrations not applied yet) — treat as logged out
+      }
     }
-    try {
-      response.headers.set('x-edge-cache', 'miss');
-    } catch {
-      /* immutable headers — skip the status header */
-    }
-  }
 
-  return response;
-});
+    const response = withSecurityHeaders(await next());
+    if (cacheState) response.headers.set('Cache-Control', 'private, no-cache');
+
+    // Store a copy for the next anonymous visitor. Never cache an error, a
+    // response that sets a cookie, or anything rendered for a logged-in user.
+    // This is a best-effort side effect: we cache a clone and always return the
+    // original response with its body untouched, so a cache failure can never
+    // break the page.
+    if (
+      canCache &&
+      contentTtl(cacheState!, EDGE_TTL) > 0 &&
+      edgeCache &&
+      !context.locals.user &&
+      response.status === 200 &&
+      !response.headers.has('set-cookie')
+    ) {
+      try {
+        const cacheCopy = response.clone();
+        cacheCopy.headers.set(
+          'Cache-Control',
+          `public, max-age=0, s-maxage=${contentTtl(cacheState!, context.url.pathname === '/api/search' ? 300 : EDGE_TTL)}`
+        );
+        // Astro v6 exposes the Cloudflare ExecutionContext as locals.cfContext;
+        // waitUntil lets the cache write finish after the response is sent.
+        const cf = (context.locals as { cfContext?: { waitUntil?: (p: Promise<unknown>) => void } }).cfContext;
+        const put = edgeCache.put(cacheKey!, cacheCopy).catch(() => {});
+        if (cf && typeof cf.waitUntil === 'function') cf.waitUntil(put);
+        else await put;
+      } catch {
+        // Cache write failed — the original response below is still served.
+      }
+      try {
+        response.headers.set('x-edge-cache', 'miss');
+      } catch {
+        /* immutable headers — skip the status header */
+      }
+    }
+
+    return response;
+  })
+);

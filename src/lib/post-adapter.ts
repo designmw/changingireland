@@ -6,10 +6,10 @@
  * from D1 so they can be published from /admin without a rebuild, so rows are
  * mapped here rather than rewriting every component.
  */
-import { parseTaxonomies, type PostRow } from '~/lib/posts';
+import { parseTaxonomies, type PostSummary } from '~/lib/posts';
 import type { Post } from '~/types';
 
-export function rowToPost(row: PostRow): Post {
+export function rowToPost(row: PostSummary & { content?: string }): Post {
   const date = new Date((row.published_at ?? row.created_at).replace(' ', 'T'));
   // "Uncategorized" is WP's default bucket, not a real section — don't label
   // cards with it (posts keep it in the JSON column for the archive URL).
@@ -31,6 +31,8 @@ export function rowToPost(row: PostRow): Post {
     draft: row.published === 0,
     Content: undefined,
     content: row.content,
-    readingTime: Math.max(1, Math.round(row.content.replace(/<[^>]+>/g, ' ').split(/\s+/).length / 200)),
+    readingTime: row.content
+      ? Math.max(1, Math.round(row.content.replace(/<[^>]+>/g, ' ').split(/\s+/).length / 200))
+      : undefined,
   } as unknown as Post;
 }

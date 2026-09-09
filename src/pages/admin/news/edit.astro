@@ -17,6 +17,7 @@ import {
   slugify,
   makeExcerpt,
   slugTaken,
+  publicationTime,
   type Taxonomy,
 } from '~/lib/posts';
 
@@ -131,8 +132,10 @@ if (Astro.request.method === 'POST' && db) {
     error = 'Please give the article a title.';
   } else if (!content) {
     error = 'Please write some content.';
+  } else if (publishedAt && !Number.isFinite(publicationTime(publishedAt))) {
+    error = 'Please choose a valid publication date.';
   } else if (await slugTaken(db, slug, id)) {
-    error = `The web address “/${slug}” is already used by another article. Change the title or the web address.`;
+    error = `The web address “/${slug}” is reserved or already used. Change the title or the web address.`;
   } else {
     const knownCategories = await getTaxonomyCounts(db, 'categories');
     const knownTags = await getTaxonomyCounts(db, 'tags');

@@ -8,7 +8,7 @@ import AdminConfirmDelete from '~/components/AdminConfirmDelete.astro';
 import { Icon } from 'astro-icon/components';
 import { isEditor, adminRedirect } from '~/lib/admin';
 import { getDb } from '~/lib/auth';
-import { deletePost, getAllPosts, getTaxonomyCounts, isLive, parseTaxonomies, type PostRow } from '~/lib/posts';
+import { deletePost, getAdminPostPage, getTaxonomyCounts, isLive, type PostSummary } from '~/lib/posts';
 
 if (!(await isEditor(Astro))) return Astro.redirect(adminRedirect(Astro));
 
@@ -35,37 +35,19 @@ const q = (Astro.url.searchParams.get('q') ?? '').trim();
 const status = (Astro.url.searchParams.get('status') ?? '').trim(); // '', published, draft, scheduled, featured
 const category = (Astro.url.searchParams.get('category') ?? '').trim().toLowerCase();
 const sort = (Astro.url.searchParams.get('sort') ?? 'newest').trim(); // newest, oldest, title
-const pageNum = Math.max(1, Number(Astro.url.searchParams.get('page') ?? 1));
-const PER_PAGE = 25;
+let pageNum = Math.max(1, Number(Astro.url.searchParams.get('page') ?? 1));
 
-let rows: PostRow[] = [];
+let rows: PostSummary[] = [];
 let total = 0;
 let totalPages = 1;
 const categories = db ? await getTaxonomyCounts(db, 'categories') : [];
 
 if (db) {
-  // Filters cover drafts too, so work on the full list rather than getPublishedPage.
-  let all = await getAllPosts(db);
-  if (q) {
-    const needle = q.toLowerCase();
-    all = all.filter((p) => `${p.title} ${p.slug} ${p.author}`.toLowerCase().includes(needle));
-  }
-  if (status === 'published') all = all.filter((p) => p.published === 1);
-  else if (status === 'draft') all = all.filter((p) => p.published === 0);
-  else if (status === 'scheduled') all = all.filter((p) => p.published === 1 && !isLive(p));
-  else if (status === 'featured') all = all.filter((p) => p.featured === 1);
-  if (category) all = all.filter((p) => parseTaxonomies(p.categories).some((c) => c.slug === category));
-  if (sort === 'oldest') all = all.slice().reverse();
-  else if (sort === 'title') all = all.slice().sort((a, b) => a.title.localeCompare(b.title, 'en-IE'));
-  else if (!status) {
-    // Default view: latest published articles first — drafts sort below them
-    // (use the Drafts filter to work on those).
-    all = all.slice().sort((a, b) => b.published - a.published);
-  }
-
-  total = all.length;
-  totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
-  rows = all.slice((pageNum - 1) * PER_PAGE, pageNum * PER_PAGE);
+  const result = await getAdminPostPage(db, { page: pageNum, q, status, category, sort });
+  rows = result.rows;
+  total = result.total;
+  totalPages = result.totalPages;
+  pageNum = result.page;
 }
 
 const filterParams: Record<string, string> = {

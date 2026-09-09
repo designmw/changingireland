@@ -1,17 +1,17 @@
 ---
 import { getFormattedDate } from '~/utils/utils';
-import { parseTaxonomies, type PostRow } from '~/lib/posts';
+import { parseTaxonomies, type PostSummary } from '~/lib/posts';
 import Image from '~/components/common/Image.astro';
 
 interface Props {
-  posts: PostRow[];
+  posts: PostSummary[];
 }
 
 const { posts } = Astro.props;
 if (posts.length === 0) return null;
 
-const primaryCategory = (p: PostRow) => parseTaxonomies(p.categories).filter((c) => c.slug !== 'uncategorized')[0];
-const dateOf = (p: PostRow) => new Date((p.published_at ?? p.created_at).replace(' ', 'T'));
+const primaryCategory = (p: PostSummary) => parseTaxonomies(p.categories).filter((c) => c.slug !== 'uncategorized')[0];
+const dateOf = (p: PostSummary) => new Date((p.published_at ?? p.created_at).replace(' ', 'T'));
 
 const lead = posts[0];
 const rest = posts.slice(1, 4);
