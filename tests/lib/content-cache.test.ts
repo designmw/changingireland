@@ -1,6 +1,13 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { testDatabase } from '../helpers/sqlite-d1';
-import { getContentState, contentEpoch, contentTtl, pageCacheKey, withContentCache } from '~/lib/content-cache';
+import {
+  BUILD_ID,
+  getContentState,
+  contentEpoch,
+  contentTtl,
+  pageCacheKey,
+  withContentCache,
+} from '~/lib/content-cache';
 import { createPost, updatePost, deletePost, getCachedLiveCount, getCachedTaxonomyCounts } from '~/lib/posts';
 
 let fixture: ReturnType<typeof testDatabase>;
@@ -87,5 +94,13 @@ describe('content cache invalidation', () => {
     );
     expect(key('/search?q=Hello')).not.toBe(key('/search?q=Other'));
     expect(key('/news?page=abc')).toBe(key('/news'));
+  });
+
+  it('never shares cached pages between deployments', () => {
+    const state = { revision: 1, liveThrough: null, nextAt: null };
+    const url = new URL('/some-article', 'https://changingireland.ie');
+    expect(pageCacheKey(url, state, 'build-a').url).not.toBe(pageCacheKey(url, state, 'build-b').url);
+    expect(pageCacheKey(url, state, 'build-a').url).toBe(pageCacheKey(url, state, 'build-a').url);
+    expect(pageCacheKey(url, state).url).toBe(pageCacheKey(url, state, BUILD_ID).url);
   });
 });

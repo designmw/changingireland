@@ -148,6 +148,13 @@ export default defineConfig({
 
   vite: {
     plugins: [tailwindcss()],
+    define: {
+      // Identifies this build. The edge page cache keys on it
+      // (src/lib/content-cache.ts): cached HTML links its own build's hashed
+      // CSS and JS, which the next deploy deletes, so pages cached before a
+      // deploy must never be served after it. Set BUILD_ID to pin a value.
+      __CI_BUILD_ID__: JSON.stringify(process.env.BUILD_ID || Date.now().toString(36)),
+    },
     resolve: {
       alias: {
         '~': path.resolve(__dirname, './src'),

@@ -51,8 +51,16 @@ export async function cachedContentValue<T>(db: D1Database, key: string, compute
   return value;
 }
 
+/**
+ * The build that rendered a cached page. Cached HTML links that build's hashed
+ * CSS and JS, and a deploy deletes the old files, so a page cached before a
+ * deploy would load without its styles after it. Keying on the build retires
+ * every cached page at deploy time. 'dev' under vitest.
+ */
+export const BUILD_ID = typeof __CI_BUILD_ID__ === 'string' ? __CI_BUILD_ID__ : 'dev';
+
 /** Preserve functional parameters only; equivalent tracking URLs share HTML. */
-export function pageCacheKey(url: URL, state: ContentState): Request {
+export function pageCacheKey(url: URL, state: ContentState, build: string = BUILD_ID): Request {
   const key = new URL(url);
   key.search = '';
   const pathname = url.pathname.replace(/\/+$/, '') || '/';
@@ -69,6 +77,6 @@ export function pageCacheKey(url: URL, state: ContentState): Request {
       if (url.searchParams.get('sort') === 'oldest') key.searchParams.set('sort', 'oldest');
     }
   }
-  key.searchParams.set('__ci_page_cache', `3:${contentEpoch(state)}`);
+  key.searchParams.set('__ci_page_cache', `4:${build}:${contentEpoch(state)}`);
   return new Request(key, { method: 'GET' });
 }

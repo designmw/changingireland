@@ -32,6 +32,10 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
+// This build's id, injected by `vite.define` in astro.config.ts. Undefined
+// under vitest, which doesn't load the Astro config.
+declare const __CI_BUILD_ID__: string | undefined;
+
 // Auth: the logged-in editor (set by src/middleware.ts on server-rendered routes).
 declare namespace App {
   interface Locals {
