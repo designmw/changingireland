@@ -134,6 +134,52 @@ const editorId = `rich-${name}`;
     width: 20rem;
     height: auto;
   }
+  /* A captioned picture is a <figure> block: sized to a small picture so the
+     caption wraps beneath it, and aligned as a whole. The caption is edited
+     from the image toolbar, so a click anywhere on the figure selects it. */
+  .rich-editor .ql-editor figure {
+    margin: 0.75rem 0;
+    cursor: pointer;
+  }
+  .rich-editor .ql-editor figure:has(img.ci-img-thumb) {
+    width: 9.5rem;
+  }
+  .rich-editor .ql-editor figure:has(img.ci-img-medium) {
+    width: 20rem;
+    max-width: 100%;
+  }
+  .rich-editor .ql-editor figure.ql-align-center {
+    margin-inline: auto;
+  }
+  .rich-editor .ql-editor figure.ql-align-right {
+    margin-left: auto;
+    margin-right: 0;
+  }
+  .rich-editor .ql-editor figcaption {
+    margin-top: 0.4rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    font-style: italic;
+    color: rgb(75 85 99);
+  }
+  /* The caption box in the image toolbar, matching the alt text input. */
+  .rich-image-alt textarea {
+    display: block;
+    width: 18rem;
+    max-width: 60vw;
+    padding: 0.35rem 0.55rem;
+    border: 1px solid rgb(209 213 219);
+    border-radius: 0.5rem;
+    font: inherit;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    resize: vertical;
+  }
+  .rich-image-alt textarea:focus {
+    outline: none;
+    border-color: var(--aw-color-primary, #2e7412);
+    box-shadow: 0 0 0 2px rgb(46 116 18 / 0.2);
+  }
   /* Quill's link box, reworded for people who don't know what a URL is. */
   .rich-editor .ql-snow .ql-tooltip {
     z-index: 30;
@@ -284,6 +330,16 @@ const editorId = `rich-${name}`;
 <script>
   import Quill from 'quill';
   import { bindEditorContent } from '~/lib/editor-content';
+  import {
+    IMAGE_SIZES,
+    captionToText,
+    imageToFigure,
+    installClipboardMatchers,
+    normaliseLink,
+    registerEditorFormats,
+    replaceImageSource,
+    textToCaption,
+  } from '~/lib/editor-formats';
   import 'quill/dist/quill.snow.css';
   import { toResponsiveWebp } from '~/lib/webp-client';
   import { openImageLibrary, hasImageLibrary, invalidateImageLibrary } from '~/lib/image-library';
@@ -323,61 +379,8 @@ const editorId = `rich-${name}`;
     }
   }
 
-  // ── Image sizes ───────────────────────────────────────────────────────
-  // Quill's image blot only keeps alt/width/height. A chosen size is stored
-  // as a class (ci-img-thumb / ci-img-medium) rather than a width attribute:
-  // imported WordPress images already carry width attributes that the article
-  // page deliberately ignores, and `class` survives the server sanitiser.
-  // formats() reads the class back, so the size round-trips on reopen.
-  const IMAGE_SIZES = ['thumb', 'medium'];
-  const BaseImage = Quill.import('formats/image') as typeof import('quill/formats/image').default;
-  class SizedImage extends BaseImage {
-    static formats(node: Element) {
-      const formats: Record<string, string | null> = super.formats(node);
-      const size = IMAGE_SIZES.find((s) => node.classList.contains(`ci-img-${s}`));
-      if (size) formats.imagesize = size;
-      return formats;
-    }
-    format(name: string, value: string) {
-      if (name !== 'imagesize') return super.format(name, value);
-      IMAGE_SIZES.forEach((s) => this.domNode.classList.remove(`ci-img-${s}`));
-      if (IMAGE_SIZES.includes(value)) this.domNode.classList.add(`ci-img-${value}`);
-    }
-  }
-  Quill.register(SizedImage, true);
-
-  // ── Link targets ──────────────────────────────────────────────────────
-  // Quill's link blot puts target="_blank" on every link. Exposing the target
-  // as a format lets the link box offer "Open in a new tab"; a same-tab link
-  // simply has no target. It's handled by the link blot itself rather than a
-  // free-standing attributor, so it can never end up on plain text.
-  const BaseLink = Quill.import('formats/link') as typeof import('quill/formats/link').default;
-  class TargetLink extends BaseLink {
-    formats() {
-      const formats = super.formats();
-      formats.target = this.domNode.getAttribute('target') === '_blank' ? '_blank' : '_self';
-      return formats;
-    }
-    format(name: string, value: unknown) {
-      if (name !== 'target') return super.format(name, value as string);
-      if (value === '_self') this.domNode.removeAttribute('target');
-      else this.domNode.setAttribute('target', '_blank');
-    }
-  }
-  Quill.register(TargetLink, true);
-
-  /**
-   * Turn whatever was typed into the link box into a working address. People
-   * paste "youtube.com/watch?v=…" without the https://, which Quill would
-   * otherwise save as a broken link relative to our own site.
-   */
-  function normaliseLink(input: string): string {
-    const url = input.trim();
-    if (!url) return '';
-    if (/^(https?:|mailto:|tel:|\/|#)/i.test(url)) return url;
-    if (/^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(url)) return `mailto:${url}`;
-    return `https://${url}`;
-  }
+  // Picture sizes, captions and link targets: see src/lib/editor-formats.ts.
+  registerEditorFormats();
 
   function initRichEditors() {
     document.querySelectorAll<HTMLElement>('[data-rich-editor]:not([data-enhanced])').forEach((root) => {
@@ -513,21 +516,10 @@ const editorId = `rich-${name}`;
           quillSave();
           quill.formatText(range.index, range.length, 'target', target, 'user');
         };
-
-        // Reopening an article: carry each link's target into the editor.
-        // Quill's clipboard drops it, and the link blot would then make every
-        // link a new-tab link. `link` must come first in the attributes so the
-        // link exists before its target is applied to it.
-        quill.clipboard.addMatcher('A', (node, delta) => {
-          const target = (node as Element).getAttribute('target') === '_blank' ? '_blank' : '_self';
-          delta.ops.forEach((op) => {
-            if (op.insert === undefined) return;
-            const { link, ...rest } = op.attributes ?? {};
-            op.attributes = link ? { link, target, ...rest } : { ...rest, target };
-          });
-          return delta;
-        });
       }
+      // Keeps link targets when an article is opened; must run before
+      // bindEditorContent (below) loads it.
+      installClipboardMatchers(quill);
 
       // Every toolbar button gets a hover tooltip and a spoken name: icons
       // like the "Tx" for clear formatting mean little on their own.
@@ -618,22 +610,24 @@ const editorId = `rich-${name}`;
 
       // ── Image tools ─────────────────────────────────────────────────────
       // Clicking an image in the editor opens a small toolbar over it:
-      // replace the file, set alt text, align it, or remove it. Quill 2 ships
-      // no image UI at all, so without this an image can only be deleted by
-      // selecting it and pressing backspace.
+      // replace the file, set alt text or a caption, align or size it, or
+      // remove it. Quill 2 ships no image UI at all, so without this an image
+      // can only be deleted by selecting it and pressing backspace.
       const tools = document.createElement('div');
       tools.className = 'rich-image-tools';
       tools.hidden = true;
       tools.setAttribute('role', 'toolbar');
       tools.setAttribute('aria-label', 'Image options');
-      // The id comes off the wrapper's data attribute — this script is bundled
+      // The ids come off the wrapper's data attribute — this script is bundled
       // separately and can't see the component's frontmatter variables.
       const altId = `${root.dataset.editorId ?? 'rich'}-alt`;
+      const captionId = `${root.dataset.editorId ?? 'rich'}-caption`;
       tools.innerHTML = `
         <div class="rich-image-tools-row">
           <button type="button" data-img-act="replace">Replace</button>
           <button type="button" data-img-act="library">Choose existing</button>
           <button type="button" data-img-act="alt" aria-expanded="false">Alt text</button>
+          <button type="button" data-img-act="caption" aria-expanded="false">Caption</button>
           <span class="rich-image-tools-sep" aria-hidden="true"></span>
           <button type="button" data-img-align="" aria-label="Align left" title="Align left">Left</button>
           <button type="button" data-img-align="center" aria-label="Align centre" title="Align centre">Centre</button>
@@ -645,48 +639,80 @@ const editorId = `rich-${name}`;
           <span class="rich-image-tools-sep" aria-hidden="true"></span>
           <button type="button" data-img-act="remove" class="is-danger">Remove</button>
         </div>
-        <div class="rich-image-alt" hidden>
+        <div class="rich-image-alt" data-img-panel="alt" hidden>
           <div>
             <label for="${altId}">Image description (alt text)</label>
             <input id="${altId}" type="text" data-img-alt-input placeholder="What the image shows" />
           </div>
           <button type="button" data-img-act="alt-save">Save</button>
+        </div>
+        <div class="rich-image-alt" data-img-panel="caption" hidden>
+          <div>
+            <label for="${captionId}">Caption, shown under the picture</label>
+            <textarea id="${captionId}" rows="2" data-img-caption-input placeholder="e.g. Volunteers at the launch. Photo by …"></textarea>
+          </div>
+          <button type="button" data-img-act="caption-save">Save</button>
         </div>`;
       if (!hasImageLibrary()) tools.querySelector<HTMLButtonElement>('[data-img-act="library"]')!.hidden = true;
       root.appendChild(tools);
 
-      const altPanel = tools.querySelector<HTMLElement>('.rich-image-alt')!;
+      const altPanel = tools.querySelector<HTMLElement>('[data-img-panel="alt"]')!;
       const altInput = tools.querySelector<HTMLInputElement>('[data-img-alt-input]')!;
       const altToggle = tools.querySelector<HTMLButtonElement>('[data-img-act="alt"]')!;
+      const captionPanel = tools.querySelector<HTMLElement>('[data-img-panel="caption"]')!;
+      const captionInput = tools.querySelector<HTMLTextAreaElement>('[data-img-caption-input]')!;
+      const captionToggle = tools.querySelector<HTMLButtonElement>('[data-img-act="caption"]')!;
 
       let selected: HTMLImageElement | null = null;
 
+      /** A captioned picture is a <figure> block; an ordinary one is a bare <img>. */
+      const figureOf = (img: HTMLImageElement): HTMLElement | null => {
+        const figure = img.closest('figure');
+        return figure && quill.root.contains(figure) ? figure : null;
+      };
+      /** The picture's current caption HTML ('' for none). */
+      const captionOf = (img: HTMLImageElement): string => figureOf(img)?.querySelector('figcaption')?.innerHTML ?? '';
+
       /** Position in the document of an image's embed, or -1 if it's gone. */
       const indexOfImage = (img: HTMLImageElement): number => {
-        // Quill.find maps a DOM node back to its blot; getIndex gives the
-        // blot's position in the document.
-        const blot = (Quill as unknown as { find(node: Node): unknown }).find(img);
+        // Quill.find maps a DOM node back to its blot (for a captioned picture
+        // that's the figure); getIndex gives the blot's position.
+        const blot = (Quill as unknown as { find(node: Node): unknown }).find(figureOf(img) ?? img);
         if (!blot) return -1;
         return (quill as unknown as { getIndex(b: unknown): number }).getIndex(blot);
       };
       const indexOfSelected = (): number => (selected ? indexOfImage(selected) : -1);
 
+      /** Close the alt text and caption panels. */
+      function closePanels() {
+        altPanel.hidden = true;
+        altToggle.setAttribute('aria-expanded', 'false');
+        captionPanel.hidden = true;
+        captionToggle.setAttribute('aria-expanded', 'false');
+      }
+
       function hideTools() {
         if (selected) selected.classList.remove('rich-image-selected');
         selected = null;
         tools.hidden = true;
-        altPanel.hidden = true;
-        altToggle.setAttribute('aria-expanded', 'false');
+        closePanels();
       }
 
       function showTools(img: HTMLImageElement) {
-        if (selected && selected !== img) selected.classList.remove('rich-image-selected');
+        // Re-running for the same picture (after aligning it, or on scroll)
+        // only refreshes and re-seats the toolbar: an open panel, and anything
+        // typed in it, is left alone. On a phone, focusing a panel's text box
+        // scrolls the page, which would otherwise close the panel mid-word.
+        const newPicture = selected !== img;
+        if (selected && newPicture) selected.classList.remove('rich-image-selected');
         selected = img;
         img.classList.add('rich-image-selected');
         tools.hidden = false;
-        altPanel.hidden = true;
-        altToggle.setAttribute('aria-expanded', 'false');
-        altInput.value = img.getAttribute('alt') ?? '';
+        if (newPicture) {
+          closePanels();
+          altInput.value = img.getAttribute('alt') ?? '';
+          captionInput.value = captionToText(captionOf(img));
+        }
 
         // Reflect the current alignment of the image's line.
         const index = indexOfSelected();
@@ -711,7 +737,9 @@ const editorId = `rich-${name}`;
 
       quill.root.addEventListener('click', (event) => {
         const target = event.target as HTMLElement;
-        if (target.tagName === 'IMG') showTools(target as HTMLImageElement);
+        // Clicking a caption selects its picture too.
+        const img = target.tagName === 'IMG' ? target : target.closest('figure')?.querySelector('img');
+        if (img) showTools(img as HTMLImageElement);
         else hideTools();
       });
 
@@ -776,20 +804,22 @@ const editorId = `rich-${name}`;
             if (!url) return;
             const index = indexOfImage(img);
             if (index < 0) return;
-            const alt = img.getAttribute('alt') ?? '';
             // Swap through the document model, not the DOM, or the delta and
-            // the submitted HTML would drift apart.
-            quill.deleteText(index, 1, 'user');
-            quill.insertEmbed(index, 'image', url, 'user');
-            if (alt) quill.formatText(index, 1, 'alt', alt, 'user');
+            // the submitted HTML would drift apart. Keeps the description,
+            // caption, size, link and alignment.
+            replaceImageSource(quill, index, url);
             hideTools();
             break;
           }
-          case 'alt': {
-            const open = altPanel.hidden;
-            altPanel.hidden = !open;
-            altToggle.setAttribute('aria-expanded', String(open));
-            if (open) altInput.focus();
+          case 'alt':
+          case 'caption': {
+            const alt = button.dataset.imgAct === 'alt';
+            const panel = alt ? altPanel : captionPanel;
+            const open = panel.hidden;
+            closePanels();
+            panel.hidden = !open;
+            button.setAttribute('aria-expanded', String(open));
+            if (open) (alt ? altInput : captionInput).focus();
             break;
           }
           case 'alt-save': {
@@ -800,8 +830,31 @@ const editorId = `rich-${name}`;
               quill.formatText(index, 1, 'alt', value || '', 'user');
               if (selected) selected.setAttribute('alt', value);
             }
-            altPanel.hidden = true;
-            altToggle.setAttribute('aria-expanded', 'false');
+            closePanels();
+            break;
+          }
+          case 'caption-save': {
+            const img = selected;
+            const index = indexOfImage(img);
+            const text = captionInput.value.replace(/\s+/g, ' ').trim();
+            closePanels();
+            if (index < 0) break;
+            if (figureOf(img)) {
+              // Unchanged words keep the caption's existing italics and links;
+              // an emptied box removes the caption.
+              const current = captionOf(img);
+              if (text !== captionToText(current)) {
+                quill.formatText(index, 1, 'caption', text ? textToCaption(text) : false, 'user');
+              }
+              showTools(img);
+            } else if (text) {
+              // An ordinary picture becomes a captioned one (a figure block).
+              const at = imageToFigure(quill, index, textToCaption(text));
+              const line = at >= 0 ? (quill.getLine(at)[0] as { domNode?: HTMLElement } | null) : null;
+              const figureImg = line?.domNode?.querySelector('img');
+              if (figureImg) showTools(figureImg);
+              else hideTools();
+            }
             break;
           }
           case 'remove': {
@@ -813,12 +866,16 @@ const editorId = `rich-${name}`;
         }
       });
 
-      altInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
+      // Enter saves in either panel. A caption is one paragraph, so there's
+      // no need for new lines in it.
+      const saveOnEnter = (field: HTMLElement, action: string) =>
+        field.addEventListener('keydown', (event) => {
+          if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
           event.preventDefault();
-          tools.querySelector<HTMLButtonElement>('[data-img-act="alt-save"]')?.click();
-        }
-      });
+          tools.querySelector<HTMLButtonElement>(`[data-img-act="${action}"]`)?.click();
+        });
+      saveOnEnter(altInput, 'alt-save');
+      saveOnEnter(captionInput, 'caption-save');
 
       const contentBinding = bindEditorContent(quill, source);
 

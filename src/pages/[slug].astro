@@ -679,4 +679,20 @@ if (isPost) {
     max-width: 100%;
     height: auto;
   }
+  /* A captioned picture is a <figure>. Size the figure to a small picture so
+     the caption wraps beneath it, and align the figure as a whole. */
+  .ci-article-body figure:has(img.ci-img-thumb) {
+    width: 9.5rem;
+  }
+  .ci-article-body figure:has(img.ci-img-medium) {
+    width: 20rem;
+    max-width: 100%;
+  }
+  .ci-article-body figure.ql-align-center {
+    margin-inline: auto;
+  }
+  .ci-article-body figure.ql-align-right {
+    margin-left: auto;
+    margin-right: 0;
+  }
 </style>
