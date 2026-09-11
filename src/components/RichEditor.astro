@@ -135,6 +135,9 @@ const editorId = `rich-${name}`;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    /* Never wider than the editor: on a phone the row wraps instead. */
+    max-width: calc(100% - 0.5rem);
+    box-sizing: border-box;
     padding: 0.375rem;
     border-radius: 0.75rem;
     background: #fff;
@@ -148,6 +151,7 @@ const editorId = `rich-${name}`;
   }
   .rich-image-tools-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.125rem;
   }
@@ -450,12 +454,14 @@ const editorId = `rich-${name}`;
           b.setAttribute('aria-pressed', String((b.dataset.imgAlign ?? '') === align));
         });
 
-        // Sit just above the image, clamped inside the editor box.
+        // Sit just above the image, clamped inside the editor box on both
+        // axes so it never runs off the right edge on a narrow screen.
         const imgBox = img.getBoundingClientRect();
         const rootBox = root.getBoundingClientRect();
         const top = imgBox.top - rootBox.top - tools.offsetHeight - 8;
+        const maxLeft = Math.max(4, rootBox.width - tools.offsetWidth - 4);
         tools.style.top = `${Math.max(4, top)}px`;
-        tools.style.left = `${Math.max(4, imgBox.left - rootBox.left)}px`;
+        tools.style.left = `${Math.min(maxLeft, Math.max(4, imgBox.left - rootBox.left))}px`;
       }
 
       quill.root.addEventListener('click', (event) => {
