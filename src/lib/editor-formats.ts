@@ -193,7 +193,10 @@ class ImageFigure extends BlockEmbed {
   /** A figure with no image (a table, a pull quote) isn't ours: null tells
    *  Quill's clipboard to keep its contents as ordinary text instead. */
   static value(node: HTMLElement) {
-    return node.querySelector('img')?.getAttribute('src') ?? null;
+    // Galleries are containers, not a single-image embed. Let the clipboard
+    // traverse their children so editing cannot silently drop other pictures.
+    const images = [...node.querySelectorAll('img')].filter((img) => !img.closest('figcaption'));
+    return images.length === 1 && !node.querySelector('figure') ? images[0].getAttribute('src') : null;
   }
 
   static formats(node: HTMLElement) {
@@ -367,12 +370,13 @@ export function imageToFigure(quill: Quill, index: number, caption: string): num
   // Alone on its line (the usual case): the figure replaces the whole line, so
   // no empty paragraph is left behind, and it takes over the line's alignment.
   // The document's last line is left in place: Quill always needs one.
-  const aloneOnLine = !!line && offset === 0 && line.length() === 2 && index + 2 < quill.getLength();
+  const aloneOnLine = !!line && offset === 0 && line.length() === 2;
   if (aloneOnLine) {
     const { align } = quill.getFormat(index, 1) as { align?: string };
     if (align) attributes.align = align;
   }
-  return swapEmbed(quill, index, aloneOnLine ? 2 : 1, 'figure', embed.src, attributes);
+  const replaceLine = aloneOnLine && index + 2 < quill.getLength();
+  return swapEmbed(quill, index, replaceLine ? 2 : 1, 'figure', embed.src, attributes);
 }
 
 /**

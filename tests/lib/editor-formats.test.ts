@@ -33,6 +33,22 @@ function openAndEdit(html: string, edit: (quill: Quill) => void = (quill) => qui
 }
 
 describe('captioned pictures', () => {
+  it('keeps every image when opening a gallery figure', () => {
+    const saved = openAndEdit(
+      '<p>Intro</p><figure><img src="/one.webp"><img src="/two.webp"><figcaption>Both pictures</figcaption></figure>'
+    );
+    expect(saved).toContain('src="/one.webp"');
+    expect(saved).toContain('src="/two.webp"');
+    expect(saved).toContain('Both pictures');
+  });
+
+  it('keeps alignment when adding a caption to the last picture', () => {
+    const saved = openAndEdit('<p>Intro</p><p class="ql-align-right"><img src="/p.webp"></p>', (quill) => {
+      imageToFigure(quill, 'Intro\n'.length, 'Credit');
+    });
+    expect(saved).toContain('<figure class="ql-align-right">');
+  });
+
   it('keeps an imported caption, its formatting and a linked picture through an edit', () => {
     const saved = openAndEdit(
       '<p>Intro</p><figure aria-describedby="c1"><a href="/files/big.jpg"><img src="/files/photo.webp" alt="Volunteers" width="1024" height="683"></a><figcaption id="c1">Photo by <em>Someone</em></figcaption></figure><p>After</p>'

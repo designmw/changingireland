@@ -22,7 +22,7 @@ export interface OpenImageLibraryOptions {
 }
 
 let library: PickerImage[] | null = null;
-let bound = false;
+const boundDialogs = new WeakSet<HTMLDialogElement>();
 let resolveOpen: ((url: string | null) => void) | null = null;
 // The search box and "Show more" button are bound once; each open swaps in
 // its own render/page functions so they see that open's `current` and
@@ -141,8 +141,8 @@ export function openImageLibrary(options: OpenImageLibraryOptions = {}): Promise
   activeRender = render;
   activeMore = appendPage;
 
-  if (!bound) {
-    bound = true;
+  if (!boundDialogs.has(dialog)) {
+    boundDialogs.add(dialog);
     searchInput.addEventListener('input', () => activeRender?.());
     moreBtn.addEventListener('click', () => activeMore?.());
     closeBtn.addEventListener('click', () => dialog.close());
