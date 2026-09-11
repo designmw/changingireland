@@ -4,6 +4,7 @@ export const prerender = false;
 import Layout from '~/layouts/PageLayout.astro';
 import AdminShell from '~/components/AdminShell.astro';
 import RichEditor from '~/components/RichEditor.astro';
+import ImageLibraryDialog from '~/components/ImageLibraryDialog.astro';
 import { Icon } from 'astro-icon/components';
 import { isAdmin, adminRedirect } from '~/lib/admin';
 import { getDb, getUploads } from '~/lib/auth';
@@ -215,6 +216,8 @@ const metadata = { title: id ? 'Edit issue — Admin' : 'New issue — Admin', r
         </button>
       </div>
     </form>
+    {/* Image library for the description editor's toolbar. */}
+    <ImageLibraryDialog />
   </AdminShell>
 </Layout>
 

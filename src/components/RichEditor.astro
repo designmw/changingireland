@@ -6,8 +6,12 @@
  * itself is shown as a fallback.
  *
  * Toolbar images upload to R2 through /api/admin/upload and are inserted by
- * URL (never base64). A "Edit raw HTML" toggle is there for power users and
- * keeps imported markup untouched unless the visual editor is actually used.
+ * URL (never base64). A second toolbar button inserts a picture already on
+ * the site through the shared <ImageLibraryDialog /> (render it once on the
+ * page; the button hides itself when it's absent). The toolbar sticks to the
+ * top of the viewport while the article scrolls, so it's always reachable.
+ * An "Edit raw HTML" toggle is there for power users and keeps imported
+ * markup untouched unless the visual editor is actually used.
  */
 interface Props {
   name: string;
@@ -69,6 +73,25 @@ const editorId = `rich-${name}`;
     border-radius: 0.75rem 0.75rem 0 0;
     background: #f9fafb;
     font-family: inherit;
+    /* Follows the editor down the page so the buttons stay in reach on a long
+       article. Sticky is scoped to .rich-editor, so it lets go once the
+       writing area scrolls past. */
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .rich-editor .ql-toolbar.ql-snow.is-stuck {
+    border-radius: 0;
+    box-shadow: 0 4px 12px -4px rgb(0 0 0 / 0.15);
+  }
+  /* The library button is ours, not Quill's: give it the same footprint. */
+  .rich-editor .ql-toolbar .ql-library svg {
+    width: 18px;
+    height: 18px;
+  }
+  .rich-editor .ql-toolbar .ql-library:hover svg,
+  .rich-editor .ql-toolbar .ql-library:focus svg {
+    color: #06c;
   }
   .rich-editor .ql-container.ql-snow {
     border: 1px solid rgb(209 213 219);
@@ -196,6 +219,7 @@ const editorId = `rich-${name}`;
   import { bindEditorContent } from '~/lib/editor-content';
   import 'quill/dist/quill.snow.css';
   import { toResponsiveWebp } from '~/lib/webp-client';
+  import { openImageLibrary, hasImageLibrary, invalidateImageLibrary } from '~/lib/image-library';
 
   /** Open a file picker and resolve with the chosen image, if any. */
   function pickImage(): Promise<File | null> {
@@ -224,6 +248,7 @@ const editorId = `rich-${name}`;
         alert(json.error ?? 'Upload failed — try a smaller image.');
         return null;
       }
+      invalidateImageLibrary(); // so the new file shows in the library next time
       return json.url;
     } catch {
       alert('Upload failed — check your connection and try again.');
@@ -244,7 +269,7 @@ const editorId = `rich-${name}`;
           ? [
               [{ header: [2, 3, false] }],
               ['bold', 'italic', 'underline', 'strike'],
-              ['link', 'image', 'blockquote'],
+              ['link', 'image', 'library', 'blockquote'],
               [{ list: 'ordered' }, { list: 'bullet' }],
               [{ align: [] }],
               ['clean'],
@@ -260,18 +285,84 @@ const editorId = `rich-${name}`;
             container: toolbar,
             handlers: {
               async image() {
+                // Take the caret position before the picker steals focus.
+                const range = quill.getSelection(true);
                 const file = await pickImage();
                 if (!file) return;
                 const url = await uploadImage(file);
                 if (!url) return;
+                insertImageAt(range.index, url);
+              },
+              async library() {
                 const range = quill.getSelection(true);
-                quill.insertEmbed(range.index, 'image', url, 'user');
-                quill.setSelection(range.index + 1);
+                const url = await openImageLibrary({ title: 'Insert an image', articleHtml: source.value });
+                if (!url) return;
+                insertImageAt(range.index, url);
               },
             },
           },
         },
       });
+
+      function insertImageAt(index: number, url: string) {
+        quill.insertEmbed(index, 'image', url, 'user');
+        quill.setSelection(index + 1);
+      }
+
+      // Quill builds an empty <button class="ql-library"> for our custom
+      // toolbar entry; give it an icon and a name. The upload button gets a
+      // name too so the two are told apart by tooltip and screen reader.
+      const toolbarEl = root.querySelector<HTMLElement>('.ql-toolbar');
+      const uploadBtn = toolbarEl?.querySelector<HTMLButtonElement>('button.ql-image');
+      const libraryBtn = toolbarEl?.querySelector<HTMLButtonElement>('button.ql-library');
+      if (uploadBtn) {
+        uploadBtn.title = 'Upload a photo';
+        uploadBtn.setAttribute('aria-label', 'Upload a photo');
+      }
+      if (libraryBtn) {
+        libraryBtn.title = 'Insert a photo from the image library';
+        libraryBtn.setAttribute('aria-label', 'Insert a photo from the image library');
+        // tabler:library-photo, drawn inline so it works inside Quill's toolbar.
+        libraryBtn.innerHTML =
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<path d="M4 8h12a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2z" />' +
+          '<path d="M6 8v-2a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-2" />' +
+          '<path d="M2 18l4.5 -4.5a2.5 2.5 0 0 1 3.5 0l2 2a2.5 2.5 0 0 0 3.5 0l2.5 -2.5" />' +
+          '<path d="M13 13m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />' +
+          '</svg>';
+        if (!hasImageLibrary()) libraryBtn.hidden = true;
+      }
+
+      // The site header is itself sticky on admin pages, so the toolbar has
+      // to stick just beneath it rather than at the viewport edge. Measure the
+      // header (it changes height at the burger breakpoint) and flag the
+      // toolbar while it is pinned so the CSS can flatten its top corners.
+      if (toolbarEl) {
+        const stickyHeader = document.querySelector<HTMLElement>('header[data-aw-sticky-header]');
+        const headerBottom = () => {
+          if (!stickyHeader) return 0;
+          const box = stickyHeader.getBoundingClientRect();
+          // Only counts while the header is actually pinned at the top.
+          return box.top <= 0 && box.bottom > 0 ? Math.round(box.bottom) : 0;
+        };
+        let ticking = false;
+        const update = () => {
+          ticking = false;
+          const offset = headerBottom();
+          toolbarEl.style.top = `${offset}px`;
+          const box = toolbarEl.getBoundingClientRect();
+          const stuck = box.top <= offset + 1 && root.getBoundingClientRect().bottom > box.bottom;
+          toolbarEl.classList.toggle('is-stuck', stuck);
+        };
+        const schedule = () => {
+          if (ticking) return;
+          ticking = true;
+          requestAnimationFrame(update);
+        };
+        window.addEventListener('scroll', schedule, { passive: true });
+        window.addEventListener('resize', schedule);
+        update();
+      }
 
       // The toolbar dropdowns (heading level, alignment) ship without an
       // accessible name — axe aria-command-name, serious.
@@ -300,6 +391,7 @@ const editorId = `rich-${name}`;
       tools.innerHTML = `
         <div class="rich-image-tools-row">
           <button type="button" data-img-act="replace">Replace</button>
+          <button type="button" data-img-act="library">Choose existing</button>
           <button type="button" data-img-act="alt" aria-expanded="false">Alt text</button>
           <span class="rich-image-tools-sep" aria-hidden="true"></span>
           <button type="button" data-img-align="" aria-label="Align left" title="Align left">Left</button>
@@ -315,6 +407,7 @@ const editorId = `rich-${name}`;
           </div>
           <button type="button" data-img-act="alt-save">Save</button>
         </div>`;
+      if (!hasImageLibrary()) tools.querySelector<HTMLButtonElement>('[data-img-act="library"]')!.hidden = true;
       root.appendChild(tools);
 
       const altPanel = tools.querySelector<HTMLElement>('.rich-image-alt')!;
@@ -323,15 +416,15 @@ const editorId = `rich-${name}`;
 
       let selected: HTMLImageElement | null = null;
 
-      /** Position in the document of the selected image's embed. */
-      const indexOfSelected = (): number => {
-        if (!selected) return -1;
+      /** Position in the document of an image's embed, or -1 if it's gone. */
+      const indexOfImage = (img: HTMLImageElement): number => {
         // Quill.find maps a DOM node back to its blot; getIndex gives the
         // blot's position in the document.
-        const blot = (Quill as unknown as { find(node: Node): unknown }).find(selected);
+        const blot = (Quill as unknown as { find(node: Node): unknown }).find(img);
         if (!blot) return -1;
         return (quill as unknown as { getIndex(b: unknown): number }).getIndex(blot);
       };
+      const indexOfSelected = (): number => (selected ? indexOfImage(selected) : -1);
 
       function hideTools() {
         if (selected) selected.classList.remove('rich-image-selected');
@@ -371,10 +464,13 @@ const editorId = `rich-${name}`;
         else hideTools();
       });
 
-      // Any click outside the editor and its toolbar dismisses the tools.
+      // Any click outside the editor and its toolbar dismisses the tools,
+      // except inside the image-library dialog, which the tools opened.
       document.addEventListener('click', (event) => {
         const target = event.target as Node;
-        if (!tools.hidden && !tools.contains(target) && !quill.root.contains(target)) hideTools();
+        if (tools.hidden || tools.contains(target) || quill.root.contains(target)) return;
+        if (document.querySelector('dialog[data-image-library]')?.contains(target)) return;
+        hideTools();
       });
       // Typing or scrolling would leave the toolbar stranded beside the image.
       quill.on('text-change', (_d, _o, source) => {
@@ -398,14 +494,27 @@ const editorId = `rich-${name}`;
         }
 
         switch (button.dataset.imgAct) {
-          case 'replace': {
-            const file = await pickImage();
-            if (!file || !selected) return;
-            const url = await uploadImage(file);
-            if (!url || !selected) return;
-            const index = indexOfSelected();
+          case 'replace':
+          case 'library': {
+            // Hold on to the image: the selection can be cleared while the
+            // picker or dialog is open, but the swap must still land on it.
+            const img = selected;
+            let url: string | null;
+            if (button.dataset.imgAct === 'replace') {
+              const file = await pickImage();
+              if (!file) return;
+              url = await uploadImage(file);
+            } else {
+              url = await openImageLibrary({
+                title: 'Replace with an existing image',
+                current: img.getAttribute('src') ?? '',
+                articleHtml: source.value,
+              });
+            }
+            if (!url) return;
+            const index = indexOfImage(img);
             if (index < 0) return;
-            const alt = selected.getAttribute('alt') ?? '';
+            const alt = img.getAttribute('alt') ?? '';
             // Swap through the document model, not the DOM, or the delta and
             // the submitted HTML would drift apart.
             quill.deleteText(index, 1, 'user');

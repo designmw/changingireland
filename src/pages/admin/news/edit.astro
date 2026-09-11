@@ -4,6 +4,7 @@ export const prerender = false;
 import Layout from '~/layouts/PageLayout.astro';
 import AdminShell from '~/components/AdminShell.astro';
 import RichEditor from '~/components/RichEditor.astro';
+import ImageLibraryDialog from '~/components/ImageLibraryDialog.astro';
 import { Icon } from 'astro-icon/components';
 import { isEditor, adminRedirect } from '~/lib/admin';
 import { getDb } from '~/lib/auth';
@@ -209,7 +210,7 @@ const metadata = {
           value={form.content}
           label="Content"
           required
-          hint="Add photos with the image button — they upload straight to the site."
+          hint="Add photos with the two picture buttons in the toolbar: upload a new one, or pick one already on the site."
         />
 
         <div>
@@ -436,67 +437,14 @@ const metadata = {
       </div>
     </form>
 
-    {
-      /* Featured-image library. Opened by "Choose existing" above; lists the
-        images in this article first, then recent admin uploads from R2. */
-    }
-    <dialog
-      data-featured-dialog
-      class="rounded-2xl border border-gray-200 shadow-2xl p-0 w-[56rem] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] backdrop:bg-black/40 m-auto"
-    >
-      <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-200">
-        <h2 class="font-heading font-extrabold text-lg text-heading m-0">Choose a featured image</h2>
-        <button
-          type="button"
-          data-featured-close
-          aria-label="Close"
-          class="inline-flex items-center justify-center w-9 h-9 rounded-full text-muted hover:bg-gray-100 hover:text-default"
-        >
-          <Icon name="tabler:x" class="h-5 w-5" />
-        </button>
-      </div>
-      <div class="p-5 overflow-y-auto max-h-[calc(100vh-7.5rem)]">
-        <section data-featured-article-section class="hidden mb-6">
-          <p class="mb-2 text-xs font-bold uppercase tracking-wider text-muted">Images in this article</p>
-          <ul
-            data-featured-article-grid
-            class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5 list-none m-0 p-0"
-          >
-          </ul>
-        </section>
-        <section>
-          <div class="flex flex-wrap items-end justify-between gap-3 mb-3">
-            <p class="text-xs font-bold uppercase tracking-wider text-muted m-0">Image library</p>
-            <div class="w-full sm:w-72">
-              <label for="featured-search" class="sr-only">Search the image library</label>
-              <input
-                id="featured-search"
-                data-featured-search
-                type="search"
-                placeholder="Search by filename or year…"
-                autocomplete="off"
-                class={`${inputClass} text-sm py-2`}
-              />
-            </div>
-          </div>
-          <p data-featured-library-status class="text-sm text-muted empty:hidden" aria-live="polite">Loading…</p>
-          <ul
-            data-featured-library-grid
-            class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5 list-none m-0 p-0"
-          >
-          </ul>
-          <div class="mt-4 text-center">
-            <button type="button" data-featured-more class="hidden btn-secondary text-sm py-2 px-4"> Show more </button>
-          </div>
-        </section>
-      </div>
-    </dialog>
+    {/* Shared image library, used by the featured-image field and the editor toolbar. */}
+    <ImageLibraryDialog />
   </AdminShell>
 </Layout>
 
 <script>
   import { toResponsiveWebp } from '~/lib/webp-client';
-  import { articleImages, matchesQuery, thumbUrl, type PickerImage } from '~/lib/featured-image';
+  import { openImageLibrary, invalidateImageLibrary } from '~/lib/image-library';
 
   // Category picker: chips for the article's categories, pills for every
   // existing category (click to toggle), and an add-new field. The plain
@@ -661,11 +609,8 @@ const metadata = {
   // uploads. The plain text input stays the submitted value and works alone.
   function initFeaturedImage() {
     const root = document.querySelector<HTMLElement>('[data-featured-image]');
-    const dialog = document.querySelector<HTMLDialogElement>('dialog[data-featured-dialog]');
-    if (!root || !dialog || root.dataset.enhanced === 'yes') return;
+    if (!root || root.dataset.enhanced === 'yes') return;
     root.dataset.enhanced = 'yes';
-    // Preserve the null check inside the event-handler closures below.
-    const libraryDialog = dialog;
 
     const input = root.querySelector<HTMLInputElement>('input[name="image_url"]')!;
     const preview = root.querySelector<HTMLElement>('[data-featured-preview]')!;
@@ -675,14 +620,6 @@ const metadata = {
     const chooseBtn = root.querySelector<HTMLButtonElement>('[data-featured-choose]')!;
     const removeBtn = root.querySelector<HTMLButtonElement>('[data-featured-remove]')!;
     const status = root.querySelector<HTMLElement>('[data-featured-status]')!;
-
-    const closeBtn = libraryDialog.querySelector<HTMLButtonElement>('[data-featured-close]')!;
-    const articleSection = libraryDialog.querySelector<HTMLElement>('[data-featured-article-section]')!;
-    const articleGrid = libraryDialog.querySelector<HTMLUListElement>('[data-featured-article-grid]')!;
-    const libraryStatus = libraryDialog.querySelector<HTMLElement>('[data-featured-library-status]')!;
-    const libraryGrid = libraryDialog.querySelector<HTMLUListElement>('[data-featured-library-grid]')!;
-    const searchInput = libraryDialog.querySelector<HTMLInputElement>('[data-featured-search]')!;
-    const moreBtn = libraryDialog.querySelector<HTMLButtonElement>('[data-featured-more]')!;
 
     const setStatus = (text: string, isError = false) => {
       status.textContent = text;
@@ -723,10 +660,6 @@ const metadata = {
       input.focus();
     });
 
-    // Recent uploads from /api/admin/uploads, fetched once per page and reset
-    // after an upload so the new file shows up.
-    let library: PickerImage[] | null = null;
-
     // ── Upload ─────────────────────────────────────────────────────────────
     function pickFile(): Promise<File | null> {
       return new Promise((resolve) => {
@@ -757,7 +690,7 @@ const metadata = {
           return;
         }
         setUrl(json.url);
-        library = null; // the new file belongs in the library next time it opens
+        invalidateImageLibrary(); // the new file belongs in the library next time it opens
         setStatus('Uploaded. Save the article to keep it.');
       } catch {
         setStatus('Upload failed. Check your connection and try again.', true);
@@ -768,102 +701,20 @@ const metadata = {
     });
 
     // ── Library dialog ─────────────────────────────────────────────────────
-    function tile(img: PickerImage): HTMLLIElement {
-      const li = document.createElement('li');
-      const b = document.createElement('button');
-      b.type = 'button';
-      const on = img.url === input.value.trim();
-      b.setAttribute('aria-pressed', String(on));
-      b.setAttribute('aria-label', `Use ${img.name}`);
-      b.title = img.name;
-      b.className = on
-        ? 'block w-full aspect-[4/3] overflow-hidden rounded-lg ring-3 ring-primary ring-offset-2 bg-gray-100'
-        : 'block w-full aspect-[4/3] overflow-hidden rounded-lg border border-gray-200 bg-gray-100 hover:ring-2 hover:ring-primary hover:ring-offset-2 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:outline-none';
-      const pic = document.createElement('img');
-      pic.src = thumbUrl(img.url);
-      pic.alt = '';
-      pic.loading = 'lazy';
-      pic.className = 'h-full w-full object-cover';
-      b.appendChild(pic);
-      b.addEventListener('click', () => {
-        setUrl(img.url);
-        setStatus('');
-        libraryDialog.close();
-        chooseBtn.focus();
-      });
-      li.appendChild(b);
-      return li;
-    }
-
-    /** Image URLs used in the article body, from the always-synced textarea. */
-    function imagesInArticle(): PickerImage[] {
+    // Shared with the editor toolbar (src/lib/image-library.ts). The article's
+    // own images come from the always-synced content textarea.
+    chooseBtn.addEventListener('click', async () => {
       const source = document.querySelector<HTMLTextAreaElement>('textarea[name="content"]');
-      return source ? articleImages(source.value) : [];
-    }
-
-    // The library can run to a few thousand pictures. Tiles are appended in
-    // pages of PAGE so the dialog opens instantly; "Show more" adds the next
-    // page and the search box filters the whole list client-side.
-    const PAGE = 60;
-    let shown = 0;
-    let filtered: PickerImage[] = [];
-
-    function appendPage() {
-      const next = filtered.slice(shown, shown + PAGE);
-      next.forEach((img) => libraryGrid.appendChild(tile(img)));
-      shown += next.length;
-      moreBtn.classList.toggle('hidden', shown >= filtered.length);
-      moreBtn.textContent = `Show more (${filtered.length - shown} left)`;
-    }
-
-    function renderLibrary() {
-      articleGrid.textContent = '';
-      const inArticle = imagesInArticle();
-      inArticle.forEach((img) => articleGrid.appendChild(tile(img)));
-      articleSection.classList.toggle('hidden', inArticle.length === 0);
-
-      libraryGrid.textContent = '';
-      shown = 0;
-      if (!library) return;
-      const query = searchInput.value.trim();
-      filtered = query ? library.filter((img) => matchesQuery(img, query)) : library;
-      libraryStatus.textContent =
-        library.length === 0
-          ? 'No images yet. Use the Upload button to add one.'
-          : filtered.length === 0
-            ? 'No images match that search.'
-            : `${filtered.length.toLocaleString('en-IE')} image${filtered.length === 1 ? '' : 's'}${query ? ' found' : ''}`;
-      appendPage();
-    }
-
-    searchInput.addEventListener('input', renderLibrary);
-    moreBtn.addEventListener('click', appendPage);
-
-    async function loadLibrary() {
-      if (library) return;
-      libraryStatus.textContent = 'Loading…';
-      try {
-        const res = await fetch('/api/admin/uploads');
-        const json = (await res.json()) as { images?: PickerImage[]; error?: string };
-        if (!res.ok || !json.images) throw new Error(json.error ?? 'failed');
-        library = json.images;
-      } catch {
-        libraryStatus.textContent = 'Could not load the image library. Close and try again.';
-        return;
+      const url = await openImageLibrary({
+        title: 'Choose a featured image',
+        current: input.value.trim(),
+        articleHtml: source?.value ?? '',
+      });
+      if (url) {
+        setUrl(url);
+        setStatus('');
       }
-      renderLibrary();
-    }
-
-    chooseBtn.addEventListener('click', () => {
-      renderLibrary();
-      libraryDialog.showModal();
-      void loadLibrary();
-    });
-    closeBtn.addEventListener('click', () => libraryDialog.close());
-    libraryDialog.addEventListener('click', (e) => {
-      // Backdrop click: the dialog box itself is the only child that can be the
-      // target when the click lands outside the panel.
-      if (e.target === libraryDialog) libraryDialog.close();
+      chooseBtn.focus();
     });
 
     actions.classList.remove('hidden');
