@@ -117,6 +117,69 @@ const editorId = `rich-${name}`;
     max-width: 100%;
     border-radius: 0.375rem;
   }
+  /* Keep in step with the matching rules in src/pages/[slug].astro so the
+     editor previews what the article page shows. */
+  .rich-editor .ql-editor .ql-align-center img {
+    margin-inline: auto;
+  }
+  .rich-editor .ql-editor .ql-align-right img {
+    margin-left: auto;
+    margin-right: 0;
+  }
+  .rich-editor .ql-editor img.ci-img-thumb {
+    width: 9.5rem;
+    height: auto;
+  }
+  .rich-editor .ql-editor img.ci-img-medium {
+    width: 20rem;
+    height: auto;
+  }
+  /* Quill's link box, reworded for people who don't know what a URL is. */
+  .rich-editor .ql-snow .ql-tooltip {
+    z-index: 30;
+    border-radius: 0.5rem;
+  }
+  .rich-editor .ql-snow .ql-tooltip[data-mode='link']::before {
+    content: 'Link to:';
+  }
+  .rich-editor .ql-snow .ql-tooltip input[type='text'] {
+    width: 16rem;
+    max-width: 55vw;
+  }
+  .rich-editor .ql-snow .ql-tooltip::before {
+    content: 'Opens:';
+  }
+  .rich-editor .ql-snow .ql-tooltip a.ql-action::after {
+    content: 'Change';
+  }
+  .rich-editor .ql-snow .ql-tooltip.ql-editing a.ql-action::after {
+    content: 'Save link';
+  }
+  .rich-editor .ql-snow .ql-tooltip a.ql-remove::before {
+    content: 'Remove link';
+  }
+  .rich-editor .ql-snow .ql-tooltip .rich-link-newtab {
+    display: none;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: 0.75rem;
+    font-size: 0.8125rem;
+    vertical-align: middle;
+    cursor: pointer;
+  }
+  .rich-editor .ql-snow .ql-tooltip.ql-editing[data-mode='link'] .rich-link-newtab {
+    display: inline-flex;
+  }
+  .rich-editor .ql-snow .ql-tooltip .rich-link-newtab input {
+    accent-color: var(--aw-color-primary, #2e7412);
+  }
+  /* On a phone the box would run off the side; let it wrap instead. */
+  @media (max-width: 40rem) {
+    .rich-editor .ql-snow .ql-tooltip.ql-editing {
+      white-space: normal;
+      max-width: calc(100vw - 3rem);
+    }
+  }
   .rich-editor .ql-editor a {
     color: rgb(24 99 220);
   }
@@ -260,6 +323,62 @@ const editorId = `rich-${name}`;
     }
   }
 
+  // ── Image sizes ───────────────────────────────────────────────────────
+  // Quill's image blot only keeps alt/width/height. A chosen size is stored
+  // as a class (ci-img-thumb / ci-img-medium) rather than a width attribute:
+  // imported WordPress images already carry width attributes that the article
+  // page deliberately ignores, and `class` survives the server sanitiser.
+  // formats() reads the class back, so the size round-trips on reopen.
+  const IMAGE_SIZES = ['thumb', 'medium'];
+  const BaseImage = Quill.import('formats/image') as typeof import('quill/formats/image').default;
+  class SizedImage extends BaseImage {
+    static formats(node: Element) {
+      const formats: Record<string, string | null> = super.formats(node);
+      const size = IMAGE_SIZES.find((s) => node.classList.contains(`ci-img-${s}`));
+      if (size) formats.imagesize = size;
+      return formats;
+    }
+    format(name: string, value: string) {
+      if (name !== 'imagesize') return super.format(name, value);
+      IMAGE_SIZES.forEach((s) => this.domNode.classList.remove(`ci-img-${s}`));
+      if (IMAGE_SIZES.includes(value)) this.domNode.classList.add(`ci-img-${value}`);
+    }
+  }
+  Quill.register(SizedImage, true);
+
+  // ── Link targets ──────────────────────────────────────────────────────
+  // Quill's link blot puts target="_blank" on every link. Exposing the target
+  // as a format lets the link box offer "Open in a new tab"; a same-tab link
+  // simply has no target. It's handled by the link blot itself rather than a
+  // free-standing attributor, so it can never end up on plain text.
+  const BaseLink = Quill.import('formats/link') as typeof import('quill/formats/link').default;
+  class TargetLink extends BaseLink {
+    formats() {
+      const formats = super.formats();
+      formats.target = this.domNode.getAttribute('target') === '_blank' ? '_blank' : '_self';
+      return formats;
+    }
+    format(name: string, value: unknown) {
+      if (name !== 'target') return super.format(name, value as string);
+      if (value === '_self') this.domNode.removeAttribute('target');
+      else this.domNode.setAttribute('target', '_blank');
+    }
+  }
+  Quill.register(TargetLink, true);
+
+  /**
+   * Turn whatever was typed into the link box into a working address. People
+   * paste "youtube.com/watch?v=…" without the https://, which Quill would
+   * otherwise save as a broken link relative to our own site.
+   */
+  function normaliseLink(input: string): string {
+    const url = input.trim();
+    if (!url) return '';
+    if (/^(https?:|mailto:|tel:|\/|#)/i.test(url)) return url;
+    if (/^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(url)) return `mailto:${url}`;
+    return `https://${url}`;
+  }
+
   function initRichEditors() {
     document.querySelectorAll<HTMLElement>('[data-rich-editor]:not([data-enhanced])').forEach((root) => {
       root.dataset.enhanced = 'yes';
@@ -288,6 +407,23 @@ const editorId = `rich-${name}`;
           toolbar: {
             container: toolbar,
             handlers: {
+              // Quill's own handler silently does nothing unless text is
+              // selected first, and removes the link if the caret is inside
+              // one. Here the button always opens the link box: with no
+              // selection the address itself becomes the link text.
+              link(value: boolean) {
+                const range = quill.getSelection(true);
+                if (!value && range.length > 0) {
+                  quill.format('link', false, 'user');
+                  return;
+                }
+                const current = (quill.getFormat(range) as { link?: string }).link;
+                const selected = range.length ? quill.getText(range).trim() : '';
+                // Pre-fill the box only with something that is already an
+                // address, never with ordinary selected words.
+                const preview = current ?? (/^(https?:\/\/|www\.)\S+$/i.test(selected) ? selected : '');
+                linkTooltip().edit('link', preview);
+              },
               async image() {
                 // Take the caret position before the picker steals focus.
                 const range = quill.getSelection(true);
@@ -312,6 +448,107 @@ const editorId = `rich-${name}`;
         quill.insertEmbed(index, 'image', url, 'user');
         quill.setSelection(index + 1);
       }
+
+      // ── Link box ────────────────────────────────────────────────────────
+      // Quill's snow tooltip, with its save step wrapped: the typed address is
+      // tidied up first, and with nothing selected the address is inserted as
+      // the link text. (Quill on its own would only arm a link for the next
+      // character typed, which looks exactly like the button doing nothing.)
+      type LinkTooltip = {
+        root: HTMLElement;
+        textbox: HTMLInputElement;
+        linkRange?: { index: number; length: number };
+        edit(mode?: string, preview?: string | null): void;
+        save(): void;
+        hide(): void;
+      };
+      const linkTooltip = () => (quill as unknown as { theme: { tooltip: LinkTooltip } }).theme.tooltip;
+      {
+        const tooltip = linkTooltip();
+        const quillEdit = tooltip.edit.bind(tooltip);
+        const quillSave = tooltip.save.bind(tooltip);
+        tooltip.textbox.setAttribute('data-link', 'Paste a web address, e.g. youtube.com/watch?v=…');
+
+        // "Open in a new tab" tickbox; the CSS shows it only while editing.
+        const newTabLabel = document.createElement('label');
+        newTabLabel.className = 'rich-link-newtab';
+        newTabLabel.innerHTML = '<input type="checkbox" /> Open in a new tab';
+        const newTab = newTabLabel.querySelector('input')!;
+        tooltip.root.insertBefore(newTabLabel, tooltip.root.querySelector('a.ql-action'));
+        newTab.addEventListener('keydown', (event) => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          tooltip.save();
+        });
+
+        tooltip.edit = (mode = 'link', preview = null) => {
+          quillEdit(mode, preview);
+          if (mode !== 'link') return;
+          // An existing link keeps its setting; a new one opens in a new tab.
+          const range = tooltip.linkRange ?? quill.getSelection();
+          const target = range?.length ? (quill.getFormat(range) as { target?: string }).target : undefined;
+          newTab.checked = target ? target === '_blank' : true;
+        };
+
+        tooltip.save = () => {
+          if (tooltip.root.getAttribute('data-mode') !== 'link') return quillSave();
+          const url = normaliseLink(tooltip.textbox.value);
+          if (!url) {
+            tooltip.hide();
+            return;
+          }
+          const target = newTab.checked ? '_blank' : '_self';
+          // Captured before Quill's save, which clears linkRange.
+          const range = tooltip.linkRange ?? quill.getSelection(true);
+          if (range.length === 0) {
+            quill.insertText(range.index, url, { link: url, target }, 'user');
+            quill.setSelection(range.index + url.length, 0, 'user');
+            // Carry on typing as plain text, not as more of the link.
+            quill.format('link', false, 'user');
+            tooltip.textbox.value = '';
+            tooltip.hide();
+            return;
+          }
+          tooltip.textbox.value = url;
+          quillSave();
+          quill.formatText(range.index, range.length, 'target', target, 'user');
+        };
+
+        // Reopening an article: carry each link's target into the editor.
+        // Quill's clipboard drops it, and the link blot would then make every
+        // link a new-tab link. `link` must come first in the attributes so the
+        // link exists before its target is applied to it.
+        quill.clipboard.addMatcher('A', (node, delta) => {
+          const target = (node as Element).getAttribute('target') === '_blank' ? '_blank' : '_self';
+          delta.ops.forEach((op) => {
+            if (op.insert === undefined) return;
+            const { link, ...rest } = op.attributes ?? {};
+            op.attributes = link ? { link, target, ...rest } : { ...rest, target };
+          });
+          return delta;
+        });
+      }
+
+      // Every toolbar button gets a hover tooltip and a spoken name: icons
+      // like the "Tx" for clear formatting mean little on their own.
+      const buttonNames: Record<string, string> = {
+        bold: 'Bold',
+        italic: 'Italic',
+        underline: 'Underline',
+        strike: 'Strikethrough',
+        link: 'Add a link to a web page or YouTube video',
+        blockquote: 'Quote',
+        'list:ordered': 'Numbered list',
+        'list:bullet': 'Bulleted list',
+        clean: 'Clear formatting (turns the selected text back into plain text)',
+      };
+      root.querySelectorAll<HTMLButtonElement>('.ql-toolbar button').forEach((button) => {
+        const format = [...button.classList].find((c) => c.startsWith('ql-'))?.slice(3);
+        const name = format && buttonNames[button.value ? `${format}:${button.value}` : format];
+        if (!name) return;
+        button.title = name;
+        button.setAttribute('aria-label', name);
+      });
 
       // Quill builds an empty <button class="ql-library"> for our custom
       // toolbar entry; give it an icon and a name. The upload button gets a
@@ -402,6 +639,10 @@ const editorId = `rich-${name}`;
           <button type="button" data-img-align="center" aria-label="Align centre" title="Align centre">Centre</button>
           <button type="button" data-img-align="right" aria-label="Align right" title="Align right">Right</button>
           <span class="rich-image-tools-sep" aria-hidden="true"></span>
+          <button type="button" data-img-size="thumb" title="Small, about the size of a postage stamp">Thumbnail</button>
+          <button type="button" data-img-size="medium" title="Medium, about half the column width">Medium</button>
+          <button type="button" data-img-size="" title="Full size">Full size</button>
+          <span class="rich-image-tools-sep" aria-hidden="true"></span>
           <button type="button" data-img-act="remove" class="is-danger">Remove</button>
         </div>
         <div class="rich-image-alt" hidden>
@@ -453,6 +694,10 @@ const editorId = `rich-${name}`;
         tools.querySelectorAll<HTMLButtonElement>('[data-img-align]').forEach((b) => {
           b.setAttribute('aria-pressed', String((b.dataset.imgAlign ?? '') === align));
         });
+        const size = IMAGE_SIZES.find((s) => img.classList.contains(`ci-img-${s}`)) ?? '';
+        tools.querySelectorAll<HTMLButtonElement>('[data-img-size]').forEach((b) => {
+          b.setAttribute('aria-pressed', String((b.dataset.imgSize ?? '') === size));
+        });
 
         // Sit just above the image, clamped inside the editor box on both
         // axes so it never runs off the right edge on a narrow screen.
@@ -494,6 +739,17 @@ const editorId = `rich-${name}`;
           if (index >= 0) {
             // Alignment belongs to the line holding the image.
             quill.formatLine(index, 1, 'align', align || false, 'user');
+            showTools(selected);
+          }
+          return;
+        }
+
+        const size = button.dataset.imgSize;
+        if (size !== undefined) {
+          const index = indexOfSelected();
+          if (index >= 0) {
+            quill.formatText(index, 1, 'imagesize', size || false, 'user');
+            // The image changed height, so re-seat the toolbar above it.
             showTools(selected);
           }
           return;

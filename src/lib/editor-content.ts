@@ -9,7 +9,17 @@ export function bindEditorContent(quill: Quill, source: HTMLTextAreaElement) {
   loadVisual();
   quill.on('text-change', () => {
     if (raw) return;
-    const html = quill.getSemanticHTML().replace(/&nbsp;|\u00a0/g, ' ');
+    const html = quill
+      .getSemanticHTML()
+      .replace(/&nbsp;|\u00a0/g, ' ')
+      // The outline on a clicked image is editor-only; don't save it.
+      .replace(/ class="([^"]*)"/g, (_match, list: string) => {
+        const kept = list
+          .split(/\s+/)
+          .filter((name) => name && name !== 'rich-image-selected')
+          .join(' ');
+        return kept ? ` class="${kept}"` : '';
+      });
     source.value = html === '<p></p>' ? '' : html;
   });
   return {
